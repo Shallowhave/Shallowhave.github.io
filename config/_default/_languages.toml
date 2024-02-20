@@ -5,6 +5,6 @@ languagedirection = "ltr"
 title = "Example Site"
 weight = 1
 [zh-cn]
-  languageName = 中文
-  title = 浅忆·Blog
+  languageName = "中文"
+  title = "浅忆·Blog"
   weight = 1
