@@ -1,7 +1,7 @@
 ---
-title: Example Category
-description: A description of this category
-image:
+title: 计算机
+description: 计算机相关内容
+image:img/computer.jpg
 
 # Badge style
 style:
