@@ -2,9 +2,10 @@
 [en]
 languageName = "English"
 languagedirection = "ltr"
-title = "Example Site"
+title = "Shallow Memory · Blog"
 weight = 1
 [zh-cn]
 languageName = "中文"
 title = "浅忆·Blog"
 weight = 1
+params = "description: 无限进步.✍️"
