@@ -3,7 +3,6 @@ mainSections = ["post"]
 # Output page's full content in RSS.
 rssFullContent = true
 favicon = "/favicon.png"
-display_toc = true
 
 [footer]
 since = 2020
