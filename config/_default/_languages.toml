@@ -3,7 +3,7 @@
 languageName = "English"
 languagedirection = "ltr"
 title = "Shallow Memory · Blog"
-weight = 1
+weight = 2
 [zh-cn]
 languageName = "中文"
 title = "浅忆·Blog"
