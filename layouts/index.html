@@ -17,15 +17,6 @@
     <span class="jump-text6" style="color:#e99312">Blog</span>
   </p>
 </div>
-<!-- ------首页欢迎字幅板块------ -->
-<!-- 下面也是主题自带的,只展示一部分,其余省略 -->
-
-<section class="article-list">
-  {{ range $index, $element := $pag.Pages }}
-  {{ partial "article-list/default" . }}
-  {{ end }}
-</section>
-
 <section class="article-list">
   {{ range $index, $element := $pag.Pages }}
   {{ partial "article-list/default" . }}
