@@ -632,3 +632,23 @@ main.main {
         padding-top: var(--main-top-padding);
     }
 }
+
+
+
+//  ~\blog\assets\scss\custom.scss
+
+//----------------------------------------------------------
+//为代码块顶部添加macos样式
+.article-content {
+    .highlight:before {
+        content: "";
+        display: block;
+        background: url(/code-header.svg);
+        height: 32px;
+        width: 100%;
+        background-size: 57px;
+        background-repeat: no-repeat;
+        margin-bottom: 5px;
+        background-position: -1px 2px;
+    }
+}

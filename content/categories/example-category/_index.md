@@ -1,7 +1,7 @@
 ---
 title: 计算机
 description: 计算机相关内容
-image: "img/computer.jpg"
+image: "/computer.jpg"
 
 # Badge style
 style:
