@@ -8,7 +8,7 @@ links:
   - title: Rd
     description: GitHub is the world's largest software development platform.
     website: https://1314520.fun
-    image: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+    image: https://1314520.fun/upload/Rd-168168.png
 menu:
     main: 
         weight: 5
