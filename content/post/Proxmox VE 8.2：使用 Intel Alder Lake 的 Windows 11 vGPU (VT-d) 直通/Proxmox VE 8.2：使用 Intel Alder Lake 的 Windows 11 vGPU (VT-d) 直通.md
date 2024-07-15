@@ -2,7 +2,7 @@
 title: Proxmox VE 8.2：使用 Intel Alder Lake 的 Windows 11 vGPU (VT-d) 直通
 description: Proxmox VE 8.2：使用 Intel Alder Lake 的 Windows 11 vGPU (VT-d) 直通
 date: 2024-02-21T13:07:05+08:00
-image:
+image: ./img/pve.png
 ---
 
 ## GPU 直通与虚拟化
