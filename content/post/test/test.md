@@ -7,7 +7,7 @@ math:
 license: 
 hidden: false
 comments: true
-draft: true
+draft: false
 ---
 ![](1.png)
 ![](2.jpg)
