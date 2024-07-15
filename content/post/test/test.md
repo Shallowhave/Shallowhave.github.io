@@ -9,7 +9,7 @@ hidden: false
 comments: true
 draft: false
 ---
-![](https://github.com/Shallowhave/Shallowhave.github.io/blob/master/content/post/test/1.png)
-![](https://github.com/Shallowhave/Shallowhave.github.io/blob/master/content/post/test/2.jpg)
-![](https://github.com/Shallowhave/Shallowhave.github.io/blob/master/content/post/test/3.jpg)
-![](https://github.com/Shallowhave/Shallowhave.github.io/blob/master/content/post/test/4.png)
+![](1.png)
+![](2.jpg)
+![](3.jpg)
+![](4.png)
