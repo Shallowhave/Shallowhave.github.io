@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>浅忆·Blog</title><link>https://shallowhave.github.io/</link><description>Recent content on 浅忆·Blog</description><generator>Hugo -- gohugo.io</generator><language>zh-cn</language><lastBuildDate>Mon, 15 Jul 2024 17:12:00 +0800</lastBuildDate><atom:link href="https://shallowhave.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>一个简单的说明</title><link>https://shallowhave.github.io/p/%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E7%9A%84%E8%AF%B4%E6%98%8E/</link><pubDate>Mon, 15 Jul 2024 17:12:00 +0800</pubDate><guid>https://shallowhave.github.io/p/%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E7%9A%84%E8%AF%B4%E6%98%8E/</guid><description>&lt;h1 id="1-打开-github-lets-build-from-here--githubhttpsgithubcom">1. 打开 &lt;a class="link" href="https://github.com/" target="_blank" rel="noopener"
+>GitHub: Let’s build from here · GitHub&lt;/a>
+&lt;/h1>&lt;p>&lt;img src="https://shallowhave.github.io/github.png"
+loading="lazy"
+>&lt;/p>
+&lt;h1 id="2-点击注册-sign-inhttpsgithubcomloginreturn_tohttps3a2f2fgithubcom2fsignup3fref_cta3dsign2bup26ref_loc3dheader2blogged2bout26ref_page3d252f26source3dheader-home">2. 点击注册 &lt;a class="link" href="https://github.com/login?return_to=https%3A%2F%2Fgithub.com%2Fsignup%3Fref_cta%3DSign%2Bup%26ref_loc%3Dheader%2Blogged%2Bout%26ref_page%3D%252F%26source%3Dheader-home" target="_blank" rel="noopener"
+>Sign in&lt;/a>
+&lt;/h1>&lt;p>&lt;img src="https://shallowhave.github.io/SignUp.png"
+loading="lazy"
+>&lt;/p></description></item><item><title>6.8内核PVE开启核显SR-IOV</title><link>https://shallowhave.github.io/p/6.8%E5%86%85%E6%A0%B8pve%E5%BC%80%E5%90%AF%E6%A0%B8%E6%98%BEsr-iov/</link><pubDate>Thu, 13 Jun 2024 13:07:05 +0800</pubDate><guid>https://shallowhave.github.io/p/6.8%E5%86%85%E6%A0%B8pve%E5%BC%80%E5%90%AF%E6%A0%B8%E6%98%BEsr-iov/</guid><description>&lt;img src="https://shallowhave.github.io/img/pve.png" alt="Featured image of post 6.8内核PVE开启核显SR-IOV" />&lt;p>软硬件环境:&lt;/p>
+&lt;p>PVE 8.2.2(内核6.8.4)&lt;/p>
+&lt;p>&lt;strong>1.安装必要组件&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">apt update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt install -y pve-headers proxmox-headers-&lt;span class="k">$(&lt;/span>uname -r&lt;span class="k">)&lt;/span> dkms flex bison
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>如果有错误,修复下&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">apt --fix-broken install
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>都安装好后reboot&lt;/p>
+&lt;p>&lt;strong>2.安装i915的内核驱动&lt;/strong>&lt;/p>
+&lt;p>从 github.com/MoetaYuko/intel-gpu-i915-backports/releases 上获取打包好的最新的文件&lt;/p>
+&lt;p>当前写文章时最新的为 I915MT65-24.1.19-3 版本,下载 intel-i915-dkms_1.24.1.19.240119.1.nodrm+i3-1_all.deb 文件&lt;/p>
+&lt;p>无论你用SFTP传还是wget,只要把文件弄到PVE上就行,然后开始安装,需要一定时间,如果有其它版本的i915模块要移除掉.其它的模块如果也因为内核变动失效或者报错可以也一并先移除,然后重新安装(重新安装还是报错的那就是不兼容,等更新)&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">dpkg -i &lt;span class="s1">&amp;#39;/root/intel-i915-dkms_1.24.1.19.240119.1.nodrm+i3-1_all.deb&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>我这里文件就放在/root目录下&lt;/p>
+&lt;p>&lt;strong>3.设置&lt;/strong>&lt;/p>
+&lt;p>启动参数&lt;/p>
+&lt;p>相对之前稍微有点改动, &lt;code>intel_iommu=on 这项可以不用添加了,6.8内核默认有这个&lt;/code>&lt;/p>
+&lt;p>&lt;code>其它还是老的,GuC参数设成3,VF最大数量设成7也行或者你想其它的也行,但是别太多,核显性能办不到啊...&lt;/code>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">nano /etc/default/grub
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>修改 GRUB_CMDLINE_LINUX_DEFAULT&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="nv">GRUB_CMDLINE_LINUX_DEFAULT&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;quiet i915.enable_guc=3 i915.max_vfs=7&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>保存后还是更新GRUB&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">update-grub
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">update-initramfs -u
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>sysfsutils组件如果已经有了就直接设置,没有就先安装&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">apt install -y sysfsutils
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>设置,根据实际需要拆分的数量来设置&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;devices/pci0000:00/0000:00:02.0/sriov_numvfs = 2&amp;#34;&lt;/span> &amp;gt; /etc/sysfs.conf
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>全部操作完成无错误后reboot&lt;/p></description></item><item><title>Proxmox VE 8.2：使用 Intel Alder Lake 的 Windows 11 vGPU (VT-d) 直通</title><link>https://shallowhave.github.io/p/proxmox-ve-8.2%E4%BD%BF%E7%94%A8-intel-alder-lake-%E7%9A%84-windows-11-vgpu-vt-d-%E7%9B%B4%E9%80%9A/</link><pubDate>Wed, 21 Feb 2024 13:07:05 +0800</pubDate><guid>https://shallowhave.github.io/p/proxmox-ve-8.2%E4%BD%BF%E7%94%A8-intel-alder-lake-%E7%9A%84-windows-11-vgpu-vt-d-%E7%9B%B4%E9%80%9A/</guid><description>&lt;img src="https://shallowhave.github.io/img/pve.png" alt="Featured image of post Proxmox VE 8.2：使用 Intel Alder Lake 的 Windows 11 vGPU (VT-d) 直通" />&lt;h2 id="gpu-直通与虚拟化">GPU 直通与虚拟化
+&lt;/h2>&lt;p>典型的 GPU 直通将整个 PCIe 图形设备传递给 VM。这意味着只有一台虚拟机可以使用 GPU 资源。这样做的优点是能够通过计算机的 HDMI 或 DisplayPort 端口将视频显示输出到外部显示器。但是，您只能使用一台虚拟机使用 GPU。如果您希望在台式计算机上使用 Proxmox，但又希望通过外部显示器充分利用主桌面操作系统的 GPU 资源，这会很有用。&lt;/p>
+&lt;h2 id="proxmox-8182-内核要求">Proxmox 8.1/8.2 内核要求
+&lt;/h2>&lt;p>默认情况下，Proxmox 8.2 安装 Linux 内核 6.8.x，提供 vGPU 功能的 DKMS 模块不支持该内核。要使用 Proxmox 8.2，您需要固定内核 6.5.13-3，因为该版本已知与 DKMS/vGPU 兼容。按照以下过程降级到并使用 Proxmox 8.2 固定内核 6.5.13-3。我还建议 Proxmox 8.1 用户也使用并固定 6.5.13-3 内核。&lt;/p>
+&lt;p>对于 Proxmox 8.1 和 8.2 用户运行以下命令：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">apt update
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">apt install proxmox-headers-6.5.13-3-pve
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">apt install proxmox-kernel-6.5.13-3-pve-signed
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">proxmox-boot-tool kernel pin 6.5.13-3-pve
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">proxmox-boot-tool refresh
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">reboot
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>重新启动后，验证 Proxmox 是否使用内核 6.5.13-3。&lt;/p>
+&lt;h2 id="proxmox-内核配置">Proxmox 内核配置
+&lt;/h2>&lt;blockquote>
+&lt;p>注意：这些命令会自动检测您正在运行的内核版本并相应地调整命令。正如前面提到的，对于 Proxmox 8.1 和 8.2，您应该使用并固定内核 6.5.13-5。&lt;/p>
+&lt;/blockquote>
+&lt;ol>
+&lt;li>在 Proxmox 主机上打开 shell 并运行以下命令。首先我们需要安装 Git、内核头文件，进行一些清理，然后使用正确的版本设置内核变量。&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">apt update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt install git sysfsutils pve-headers mokutil -y
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">rm -rf /var/lib/dkms/i915-sriov-dkms*
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">rm -rf /usr/src/i915-sriov-dkms*
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">rm -rf ~/i915-sriov-dkms
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">KERNEL&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>uname -r&lt;span class="k">)&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="nv">KERNEL&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">KERNEL&lt;/span>&lt;span class="p">%-pve&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="2">
+&lt;li>现在我们需要克隆 DKMS 存储库并修改配置文件以设置内核版本。检查软件包名称是否为 i915-sriov-dkms 并且软件包版本与您的内核版本匹配。&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> ~
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">git clone https://github.com/strongtz/i915-sriov-dkms.git
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> ~/i915-sriov-dkms
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cp -a ~/i915-sriov-dkms/dkms.conf&lt;span class="o">{&lt;/span>,.bak&lt;span class="o">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">sed -i &lt;span class="s1">&amp;#39;s/&amp;#34;@_PKGBASE@&amp;#34;/&amp;#34;i915-sriov-dkms&amp;#34;/g&amp;#39;&lt;/span> ~/i915-sriov-dkms/dkms.conf
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">sed -i &lt;span class="s1">&amp;#39;s/&amp;#34;@PKGVER@&amp;#34;/&amp;#34;&amp;#39;&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="nv">$KERNEL&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="s1">&amp;#39;&amp;#34;/g&amp;#39;&lt;/span> ~/i915-sriov-dkms/dkms.conf
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">sed -i &lt;span class="s1">&amp;#39;s/ -j$(nproc)//g&amp;#39;&lt;/span> ~/i915-sriov-dkms/dkms.conf
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat ~/i915-sriov-dkms/dkms.conf
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="3">
+&lt;li>这里我们安装DKMS，链接内核源，并检查状态。验证内核是否显示为已添加。&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">apt install --reinstall dkms -y
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">dkms add .
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> /usr/src/i915-sriov-dkms-&lt;span class="nv">$KERNEL&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">dkms status
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="4">
+&lt;li>现在让我们构建新内核并检查状态。验证它是否显示已安装&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">dkms install -m i915-sriov-dkms -v &lt;span class="nv">$KERNEL&lt;/span> -k &lt;span class="k">$(&lt;/span>uname -r&lt;span class="k">)&lt;/span> --force -j &lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">dkms status
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="5">
+&lt;li>对于全新的 Proxmox 8.1 及更高版本安装，可能会启用安全启动。为了以防万一，我们需要加载 DKMS 密钥，以便内核加载该模块。运行以下命令，然后输入密码。该密码仅用于 MOK 设置，重启主机时将再次使用。之后就不需要密码了。它不需要与您用于 root 帐户的密码相同。&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">mokutil --import /var/lib/dkms/mok.pub
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="proxmox-grub-配置">Proxmox GRUB 配置
+&lt;/h2>&lt;ol>
+&lt;li>如果您的 Proxmox 主机中没有 Google Coral PCIe TPU，请返回 Proxmox shell 运行以下命令。如果您这样做了，您就会知道，所以如果您不确定，请运行第一组命令。如果您的 Google Coral 是 USB，也请使用第一组命令。如果您的 Google Coral 是 PCIe 模块，请运行第二个命令块。&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">cp -a /etc/default/grub&lt;span class="o">{&lt;/span>,.bak&lt;span class="o">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">sudo sed -i &lt;span class="s1">&amp;#39;/^GRUB_CMDLINE_LINUX_DEFAULT/c\GRUB_CMDLINE_LINUX_DEFAULT=&amp;#34;quiet intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7&amp;#34;&amp;#39;&lt;/span> /etc/default/grub
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">update-grub
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">update-initramfs -u -k all
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">apt install sysfsutils -y
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;blockquote>
+&lt;p>如果您的 Proxmox 主机确实有 Google Coral PCIe TPU，并且您使用 PCIe 直通 LXC 或 VM，请改用此命令。这将在 Proxmox 主机级别将 Coral 设备列入黑名单，以便您的 LXC/VM 可以获得独占访问权限。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">cp -a /etc/default/grub&lt;span class="o">{&lt;/span>,.bak&lt;span class="o">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/blockquote>
+&lt;p>sudo sed -i &amp;lsquo;/^GRUB_CMDLINE_LINUX_DEFAULT/c\GRUB_CMDLINE_LINUX_DEFAULT=&amp;ldquo;quiet intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7 initcall_blacklist=sysfb_init pcie_aspm=off&amp;rdquo;&amp;rsquo; /etc/default/grub
+update-grub
+update-initramfs -u -k all
+apt install sysfsutils -y&lt;/p>
+&lt;ol start="2">
+&lt;li>运行以下命令并根据需要修改 PCIe 总线编号。在本例中，我使用 00:02.0。要验证文件是否已修改，请 cat 该文件并确保它已被修改。&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;devices/pci0000:00/0000:00:02.0/sriov_numvfs = 7&amp;#34;&lt;/span> &amp;gt; /etc/sysfs.conf
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat /etc/sysfs.conf
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>归档</title><link>https://shallowhave.github.io/archives/</link><pubDate>Tue, 20 Feb 2024 00:00:00 +0000</pubDate><guid>https://shallowhave.github.io/archives/</guid><description/></item><item><title>关于</title><link>https://shallowhave.github.io/%E5%85%B3%E4%BA%8E/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://shallowhave.github.io/%E5%85%B3%E4%BA%8E/</guid><description>&lt;h1 id="浅忆blog">浅忆·Blog
+&lt;/h1></description></item><item><title>搜索</title><link>https://shallowhave.github.io/search/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://shallowhave.github.io/search/</guid><description/></item><item><title>友链</title><link>https://shallowhave.github.io/%E5%8F%8B%E9%93%BE/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://shallowhave.github.io/%E5%8F%8B%E9%93%BE/</guid><description/></item></channel></rss>
