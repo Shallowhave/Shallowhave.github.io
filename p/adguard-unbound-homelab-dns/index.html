@@ -1,0 +1,296 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Homelab 中用 Docker Compose 部署 AdGuard Home 与 Unbound，构建内网 DNS 去广告、DNSSEC 递归解析、本地域名与反向代理联动方案，包含端口冲突、DHCP 下发、缓存调优和故障排查。"><title>把 DNS 掌握在自己手里：AdGuard Home + Unbound 打造 Homelab 去广告与本地域名解析</title><link rel=canonical href=https://shallowhave.github.io/p/adguard-unbound-homelab-dns/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="把 DNS 掌握在自己手里：AdGuard Home + Unbound 打造 Homelab 去广告与本地域名解析"><meta property='og:description' content="在 Homelab 中用 Docker Compose 部署 AdGuard Home 与 Unbound，构建内网 DNS 去广告、DNSSEC 递归解析、本地域名与反向代理联动方案，包含端口冲突、DHCP 下发、缓存调优和故障排查。"><meta property='og:url' content='https://shallowhave.github.io/p/adguard-unbound-homelab-dns/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-18T01:03:26+08:00'><meta property='article:modified_time' content='2026-05-18T01:03:26+08:00'><meta name=twitter:title content="把 DNS 掌握在自己手里：AdGuard Home + Unbound 打造 Homelab 去广告与本地域名解析"><meta name=twitter:description content="在 Homelab 中用 Docker Compose 部署 AdGuard Home 与 Unbound，构建内网 DNS 去广告、DNSSEC 递归解析、本地域名与反向代理联动方案，包含端口冲突、DHCP 下发、缓存调优和故障排查。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言homelab-的第一块基石不是虚拟化而是-dns>前言：Homelab 的第一块基石不是虚拟化，而是 DNS</a></li><li><a href=#架构设计>架构设计</a></li><li><a href=#一准备目录与-docker-compose>一、准备目录与 Docker Compose</a></li><li><a href=#二配置-unbound递归缓存内网保护>二、配置 Unbound：递归、缓存、内网保护</a></li><li><a href=#三初始化-adguard-home>三、初始化 AdGuard Home</a></li><li><a href=#四本地域名让服务入口变成人能记住的名字>四、本地域名：让服务入口变成人能记住的名字</a></li><li><a href=#五让全网设备自动使用-adguard>五、让全网设备自动使用 AdGuard</a></li><li><a href=#六常用运维命令>六、常用运维命令</a></li><li><a href=#七踩坑记录>七、踩坑记录</a><ol><li><a href=#1-端口-53-被占用>1. 端口 53 被占用</a></li><li><a href=#2-adguard-能打开后台但客户端解析不了>2. AdGuard 能打开后台，但客户端解析不了</a></li><li><a href=#3-本地域名偶尔失效>3. 本地域名偶尔失效</a></li><li><a href=#4-dns-服务一挂全家断网>4. DNS 服务一挂，全家断网</a></li></ol></li><li><a href=#八推荐规则与隐私边界>八、推荐规则与隐私边界</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/adguard-unbound-homelab-dns/>把 DNS 掌握在自己手里：AdGuard Home + Unbound 打造 Homelab 去广告与本地域名解析</a></h2><h3 class=article-subtitle>在 Homelab 中用 Docker Compose 部署 AdGuard Home 与 Unbound，构建内网 DNS 去广告、DNSSEC 递归解析、本地域名与反向代理联动方案，包含端口冲突、DHCP 下发、缓存调优和故障排查。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 18, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 7 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言homelab-的第一块基石不是虚拟化而是-dns>前言：Homelab 的第一块基石不是虚拟化，而是 DNS</h2><p>很多人搭 Homelab 会先折腾 Proxmox VE、NAS、Docker、GPU 直通，最后才发现一个更基础的问题：服务越多，入口越乱。今天要记 <code>192.168.10.20</code> 的 <code>3000</code> 端口，明天要记 <code>pve.lan</code> 的 <code>8006</code> 端口，后天又多一个 <code>grafana.home.arpa</code>。如果 DNS 还完全依赖路由器和运营商，内网服务发现、广告拦截、故障排查都会变得很被动。</p><p>这篇文章讲一套 Homelab 很值得落地的 DNS 方案：<strong>AdGuard Home 做内网 DNS 网关和广告拦截，Unbound 做本地递归解析器</strong>。它不是单纯“屏蔽广告”的小工具，而是可以把本地域名、上游解析、缓存、DNSSEC、客户端统计、反向代理入口统一管理起来。</p><p>目标效果：</p><ul><li>全家设备自动使用内网 DNS；</li><li>广告、追踪域名在 DNS 层直接拦截；</li><li><code>*.home.arpa</code> 指向内网服务，不再背 IP 和端口；</li><li>外部域名由 Unbound 递归解析，减少对运营商 DNS 的依赖；</li><li>出问题时能用命令快速定位，而不是盲猜路由器。</li></ul><blockquote><p>参考：AdGuard Home 官方 Docker 镜像文档说明需要持久化 <code>/opt/adguardhome/work</code> 和 <code>/opt/adguardhome/conf</code>；NLnet Labs 的 Unbound 文档将 Unbound 定义为 caching resolver，并使用 root hints 递归查询根域名服务器。</p></blockquote><h2 id=架构设计>架构设计</h2><p>推荐把 DNS 服务放在一台常开的 Docker 主机或轻量 VM 上。不要放在经常关机的测试机里，否则全家网络都会被你“实验”带崩。</p><div class=table-wrapper><table><thead><tr><th>组件</th><th>地址示例</th><th>作用</th><th>备注</th></tr></thead><tbody><tr><td>AdGuard Home</td><td><code>192.168.10.53:53</code></td><td>内网 DNS 入口、广告拦截、客户端统计</td><td>DHCP 下发给所有设备</td></tr><tr><td>Unbound</td><td><code>172.30.53.3:5335</code></td><td>递归解析、缓存、DNSSEC</td><td>只给 AdGuard 调用</td></tr><tr><td>反向代理</td><td><code>192.168.10.9</code></td><td>Caddy / Traefik / Nginx</td><td><code>*.home.arpa</code> 统一指向它</td></tr><tr><td>路由器 DHCP</td><td><code>192.168.10.1</code></td><td>分配 IP 和 DNS</td><td>DNS 指向 AdGuard</td></tr></tbody></table></div><p>数据流很简单：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Client -&gt; AdGuard Home:53 -&gt; 命中拦截/重写/缓存？
+</span></span><span class=line><span class=cl>                           -&gt; 是：直接返回
+</span></span><span class=line><span class=cl>                           -&gt; 否：转发给 Unbound:5335 -&gt; 递归查询公网权威 DNS
+</span></span></code></pre></td></tr></table></div></div><p>为什么不让 AdGuard 直接用 <code>223.5.5.5</code>、<code>1.1.1.1</code>？可以，但 Homelab 更推荐 Unbound：第一，它有本地缓存；第二，它能做 DNSSEC 验证；第三，排障时你清楚自己依赖的是哪一层。</p><h2 id=一准备目录与-docker-compose>一、准备目录与 Docker Compose</h2><p>先在 Docker 主机准备目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo mkdir -p /opt/dns-stack/<span class=o>{</span>adguard-work,adguard-conf,unbound<span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /opt/dns-stack
+</span></span></code></pre></td></tr></table></div></div><p>如果宿主机已经运行 <code>systemd-resolved</code>，它可能占用 <code>127.0.0.53:53</code>。先检查端口：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo ss -lntup <span class=p>|</span> grep <span class=s1>&#39;:53 &#39;</span> <span class=o>||</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl>resolvectl status <span class=p>|</span> sed -n <span class=s1>&#39;1,80p&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果你要让 AdGuard 直接绑定宿主机 <code>53/tcp</code> 和 <code>53/udp</code>，宿主机上就不能再有其它 DNS 服务抢占 <code>0.0.0.0:53</code>。Ubuntu/Debian 常见处理方式是把 <code>systemd-resolved</code> 的 stub listener 关掉：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo mkdir -p /etc/systemd/resolved.conf.d
+</span></span><span class=line><span class=cl>cat <span class=s>&lt;&lt;&#39;EOF&#39; | sudo tee /etc/systemd/resolved.conf.d/no-stub.conf
+</span></span></span><span class=line><span class=cl><span class=s>[Resolve]
+</span></span></span><span class=line><span class=cl><span class=s>DNSStubListener=no
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>sudo systemctl restart systemd-resolved
+</span></span><span class=line><span class=cl>sudo ss -lntup <span class=p>|</span> grep <span class=s1>&#39;:53 &#39;</span> <span class=o>||</span> <span class=nb>true</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>注意：这是宿主机级别改动。生产环境建议先开一个 SSH 会话保持在线，避免 DNS 改错后自己把远程连接搞断。</p></blockquote><p>创建 <code>docker-compose.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>adguard</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>adguard/adguardhome:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>adguardhome</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>depends_on</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>unbound</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;53:53/tcp&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;53:53/udp&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;3000:3000/tcp&#34;</span><span class=w>   </span><span class=c># 首次初始化向导</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;8080:80/tcp&#34;</span><span class=w>     </span><span class=c># 初始化后 Web UI，可按需改成反代</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./adguard-work:/opt/adguardhome/work</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./adguard-conf:/opt/adguardhome/conf</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>dns_net</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>ipv4_address</span><span class=p>:</span><span class=w> </span><span class=m>172.30.53.2</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>unbound</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>mvance/unbound:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>unbound</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./unbound/unbound.conf:/opt/unbound/etc/unbound/unbound.conf:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>dns_net</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>ipv4_address</span><span class=p>:</span><span class=w> </span><span class=m>172.30.53.3</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>dns_net</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>driver</span><span class=p>:</span><span class=w> </span><span class=l>bridge</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ipam</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>config</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=nt>subnet</span><span class=p>:</span><span class=w> </span><span class=m>172.30.53.0</span><span class=l>/24</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这里把 Unbound 固定在 Docker 内网 <code>172.30.53.3</code>，后面 AdGuard 的上游 DNS 就填 <code>172.30.53.3:5335</code>。不把 Unbound 暴露到宿主机端口，是为了减少攻击面，也避免家庭网络里其它设备绕过 AdGuard 直接查询。</p><h2 id=二配置-unbound递归缓存内网保护>二、配置 Unbound：递归、缓存、内网保护</h2><p>创建 <code>/opt/dns-stack/unbound/unbound.conf</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>server:</span>
+</span></span><span class=line><span class=cl>    <span class=na>interface: 0.0.0.0</span>
+</span></span><span class=line><span class=cl>    <span class=na>port: 5335</span>
+</span></span><span class=line><span class=cl>    <span class=na>do-ip4: yes</span>
+</span></span><span class=line><span class=cl>    <span class=na>do-ip6: no</span>
+</span></span><span class=line><span class=cl>    <span class=na>do-udp: yes</span>
+</span></span><span class=line><span class=cl>    <span class=na>do-tcp: yes</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=na>access-control: 172.30.53.0/24 allow</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=na>num-threads: 2</span>
+</span></span><span class=line><span class=cl>    <span class=na>msg-cache-size: 64m</span>
+</span></span><span class=line><span class=cl>    <span class=na>rrset-cache-size: 128m</span>
+</span></span><span class=line><span class=cl>    <span class=na>cache-min-ttl: 60</span>
+</span></span><span class=line><span class=cl>    <span class=na>cache-max-ttl: 86400</span>
+</span></span><span class=line><span class=cl>    <span class=na>prefetch: yes</span>
+</span></span><span class=line><span class=cl>    <span class=na>serve-expired: yes</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=na>hide-identity: yes</span>
+</span></span><span class=line><span class=cl>    <span class=na>hide-version: yes</span>
+</span></span><span class=line><span class=cl>    <span class=na>harden-glue: yes</span>
+</span></span><span class=line><span class=cl>    <span class=na>harden-dnssec-stripped: yes</span>
+</span></span><span class=line><span class=cl>    <span class=na>qname-minimisation: yes</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=na>private-address: 10.0.0.0/8</span>
+</span></span><span class=line><span class=cl>    <span class=na>private-address: 172.16.0.0/12</span>
+</span></span><span class=line><span class=cl>    <span class=na>private-address: 192.168.0.0/16</span>
+</span></span><span class=line><span class=cl>    <span class=na>private-address: fd00::/8</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=na>verbosity: 1</span>
+</span></span></code></pre></td></tr></table></div></div><p>启动服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/dns-stack
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker compose logs -f --tail<span class=o>=</span><span class=m>80</span> unbound
+</span></span></code></pre></td></tr></table></div></div><p>验证 Unbound：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> -it unbound drill @127.0.0.1 -p <span class=m>5335</span> example.com
+</span></span><span class=line><span class=cl><span class=c1># 如果镜像里没有 drill，可改用 nslookup：</span>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it unbound nslookup example.com 127.0.0.1
+</span></span></code></pre></td></tr></table></div></div><p>如果这里都解析失败，不要急着改 AdGuard，先看 Unbound 日志和 Docker 网络。DNS 链路排障一定要从下游往上游一层层验证。</p><h2 id=三初始化-adguard-home>三、初始化 AdGuard Home</h2><p>浏览器打开 <code>192.168.10.53</code> 的 <code>3000</code> 端口进行初始化。初始化时注意：</p><ol><li>Web 管理界面监听可以选 <code>0.0.0.0:80</code>，因为 Compose 映射到了宿主机 <code>8080:80</code>，外部访问就是 <code>192.168.10.53</code> 的 <code>8080</code> 端口；</li><li>DNS 服务监听 <code>0.0.0.0:53</code>；</li><li>设置强密码，别用默认弱口令；</li><li>初始化完成后，首次向导端口 <code>3000</code> 基本不再需要，可以从 Compose 里删掉或用防火墙限制。</li></ol><p>进入后台后，在 <strong>Settings -> DNS settings -> Upstream DNS servers</strong> 填：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>172.30.53.3:5335
+</span></span></code></pre></td></tr></table></div></div><p>然后开启几个关键选项：</p><div class=table-wrapper><table><thead><tr><th>选项</th><th>建议</th><th>原因</th></tr></thead><tbody><tr><td>Cache size</td><td><code>4194304</code> 或更高</td><td>家庭网络足够用，减少重复查询</td></tr><tr><td>Optimistic caching</td><td>开启</td><td>TTL 过期时先返回旧记录再刷新，体感更稳</td></tr><tr><td>DNSSEC</td><td>视情况开启</td><td>如果由 Unbound 验证，可在 AdGuard 侧保持默认</td></tr><tr><td>Query logs</td><td>保留 24h 到 7d</td><td>太久会占磁盘，也会留下隐私数据</td></tr><tr><td>Statistics</td><td>保留 7d 到 30d</td><td>方便观察客户端和拦截率</td></tr></tbody></table></div><h2 id=四本地域名让服务入口变成人能记住的名字>四、本地域名：让服务入口变成人能记住的名字</h2><p>建议使用 <code>home.arpa</code> 作为家庭内网域名后缀。它是 RFC 8375 为家庭网络保留的域名，比随手写 <code>.lan</code>、<code>.local</code> 更不容易和 mDNS 或真实顶级域冲突。</p><p>在 AdGuard Home 的 <strong>Filters -> DNS rewrites</strong> 添加：</p><div class=table-wrapper><table><thead><tr><th>域名</th><th>指向</th><th>用途</th></tr></thead><tbody><tr><td><code>pve.home.arpa</code></td><td><code>192.168.10.10</code></td><td>Proxmox VE</td></tr><tr><td><code>nas.home.arpa</code></td><td><code>192.168.10.20</code></td><td>NAS</td></tr><tr><td><code>grafana.home.arpa</code></td><td><code>192.168.10.30</code></td><td>Grafana</td></tr><tr><td><code>*.home.arpa</code></td><td><code>192.168.10.9</code></td><td>统一指向反向代理</td></tr></tbody></table></div><p>如果你用 Caddy，可以这样接：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>grafana.home.arpa</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>192.168.10.30</span><span class=p>:</span><span class=mi>3000</span>
+</span></span><span class=line><span class=cl>    <span class=k>tls</span> <span class=no>internal</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=gh>ha.home.arpa</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>192.168.10.40</span><span class=p>:</span><span class=mi>8123</span>
+</span></span><span class=line><span class=cl>    <span class=k>tls</span> <span class=no>internal</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果你暂时不想折腾内网 CA，也可以先用 HTTP：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>grafana.home.arpa:80</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>192.168.10.30</span><span class=p>:</span><span class=mi>3000</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>客户端验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>nslookup grafana.home.arpa 192.168.10.53
+</span></span><span class=line><span class=cl>curl -I grafana.home.arpa
+</span></span></code></pre></td></tr></table></div></div><p>这一步做完，Homelab 的体验会明显提升：服务迁移时只改 DNS rewrite 或反代配置，不再挨个改收藏夹、脚本和监控目标。</p><h2 id=五让全网设备自动使用-adguard>五、让全网设备自动使用 AdGuard</h2><p>最推荐在路由器 DHCP 里下发 DNS：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>DHCP DNS Server: 192.168.10.53
+</span></span><span class=line><span class=cl>DHCP Domain: home.arpa
+</span></span></code></pre></td></tr></table></div></div><p>如果路由器不支持自定义 DNS，退而求其次：</p><ol><li>关闭路由器 DHCP；</li><li>让 AdGuard Home 接管 DHCP；</li><li>或者用 OpenWrt / OPNsense 作为 DHCP 服务器。</li></ol><p>AdGuard DHCP 示例配置思路：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Range: 192.168.10.100 - 192.168.10.200
+</span></span><span class=line><span class=cl>Gateway: 192.168.10.1
+</span></span><span class=line><span class=cl>Subnet mask: 255.255.255.0
+</span></span><span class=line><span class=cl>DNS server: 192.168.10.53
+</span></span></code></pre></td></tr></table></div></div><p>注意一个坑：<strong>不要同时开两个 DHCP</strong>。两个 DHCP 同网段同时发租约，会出现一部分设备走 AdGuard，另一部分设备走路由器 DNS，表现为“有的手机能屏蔽广告，有的不能”。</p><h2 id=六常用运维命令>六、常用运维命令</h2><p>查看容器状态：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/dns-stack
+</span></span><span class=line><span class=cl>docker compose ps
+</span></span><span class=line><span class=cl>docker compose logs --tail<span class=o>=</span><span class=m>100</span> adguard
+</span></span><span class=line><span class=cl>docker compose logs --tail<span class=o>=</span><span class=m>100</span> unbound
+</span></span></code></pre></td></tr></table></div></div><p>测试 DNS 链路：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 直接问 AdGuard</span>
+</span></span><span class=line><span class=cl>nslookup example.com 192.168.10.53
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 测试本地域名</span>
+</span></span><span class=line><span class=cl>nslookup pve.home.arpa 192.168.10.53
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 测试是否真的走了拦截规则，返回 0.0.0.0 或 NXDOMAIN 都可能是正常拦截表现</span>
+</span></span><span class=line><span class=cl>nslookup doubleclick.net 192.168.10.53
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 测试 TCP DNS，排除 UDP 被防火墙拦截的问题</span>
+</span></span><span class=line><span class=cl>dig @192.168.10.53 example.com +tcp
+</span></span></code></pre></td></tr></table></div></div><p>备份配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>tar -C /opt -czf /root/dns-stack-<span class=k>$(</span>date +%F<span class=k>)</span>.tar.gz dns-stack/adguard-conf dns-stack/adguard-work dns-stack/unbound docker-compose.yml
+</span></span></code></pre></td></tr></table></div></div><p>升级：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/dns-stack
+</span></span><span class=line><span class=cl>docker compose pull
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker image prune -f
+</span></span></code></pre></td></tr></table></div></div><p>恢复时只要把 <code>adguard-conf</code>、<code>adguard-work</code>、<code>unbound.conf</code> 和 Compose 文件放回原路径，再 <code>docker compose up -d</code> 即可。</p><h2 id=七踩坑记录>七、踩坑记录</h2><h3 id=1-端口-53-被占用>1. 端口 53 被占用</h3><p>症状：AdGuard 容器启动失败，日志里有 <code>bind: address already in use</code>。</p><p>排查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo ss -lntup <span class=p>|</span> grep <span class=s1>&#39;:53 &#39;</span>
+</span></span><span class=line><span class=cl>sudo ss -lnuap <span class=p>|</span> grep <span class=s1>&#39;:53 &#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>修复方向：关闭 <code>systemd-resolved</code> stub、停止 dnsmasq，或者把 AdGuard 放到 macvlan 独立 IP。不要把容器端口随便改成 <code>5353</code> 然后指望全家设备自动使用，客户端默认只会问 53。</p><h3 id=2-adguard-能打开后台但客户端解析不了>2. AdGuard 能打开后台，但客户端解析不了</h3><p>常见原因是只映射了 TCP 53，没有映射 UDP 53。DNS 大部分查询走 UDP，所以 Compose 必须同时有：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl>- <span class=s2>&#34;53:53/tcp&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl>- <span class=s2>&#34;53:53/udp&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=3-本地域名偶尔失效>3. 本地域名偶尔失效</h3><p>如果你用了 <code>.local</code>，很可能和 mDNS 冲突。建议迁移到 <code>home.arpa</code>。另外检查客户端是否真的拿到了 AdGuard DNS：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># Linux</span>
+</span></span><span class=line><span class=cl>resolvectl status
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Windows PowerShell</span>
+</span></span><span class=line><span class=cl>Get-DnsClientServerAddress
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># macOS</span>
+</span></span><span class=line><span class=cl>scutil --dns <span class=p>|</span> grep nameserver
+</span></span></code></pre></td></tr></table></div></div><h3 id=4-dns-服务一挂全家断网>4. DNS 服务一挂，全家断网</h3><p>DNS 是基础设施，别只部署一个实例。进阶方案是准备两个 AdGuard：</p><div class=table-wrapper><table><thead><tr><th>节点</th><th>IP</th><th>角色</th></tr></thead><tbody><tr><td>DNS-1</td><td><code>192.168.10.53</code></td><td>主 DNS</td></tr><tr><td>DNS-2</td><td><code>192.168.10.54</code></td><td>备用 DNS</td></tr></tbody></table></div><p>DHCP 同时下发两个 DNS。注意主备配置要同步，可以定期备份 <code>AdGuardHome.yaml</code>，或者用 Ansible / Git 管理配置。</p><h2 id=八推荐规则与隐私边界>八、推荐规则与隐私边界</h2><p>广告过滤不是规则越多越好。规则过多会增加内存占用和误杀概率。家庭网络建议从这几类开始：</p><div class=table-wrapper><table><thead><tr><th>类型</th><th>建议</th><th>说明</th></tr></thead><tbody><tr><td>广告追踪</td><td>AdGuard DNS filter</td><td>默认规则，稳定性较好</td></tr><tr><td>恶意域名</td><td>开启安全浏览</td><td>防钓鱼、恶意软件</td></tr><tr><td>家长控制</td><td>按需</td><td>容易误伤，别默认全开</td></tr><tr><td>自定义黑名单</td><td>少量维护</td><td>针对电视广告、IoT 上报域名</td></tr></tbody></table></div><p>隐私上也要有边界：AdGuard 能看到全网 DNS 查询，管理员可以知道每台设备访问过哪些域名。家庭环境建议减少日志保留时间，不要把查询日志长期上传到第三方分析系统。</p><h2 id=总结>总结</h2><p>这套 AdGuard Home + Unbound 的方案，核心价值不是“屏蔽几个广告”，而是把 Homelab 的服务发现和 DNS 控制权拿回来。</p><div class=table-wrapper><table><thead><tr><th>场景</th><th>推荐配置</th></tr></thead><tbody><tr><td>小型 Homelab</td><td>单 AdGuard + 单 Unbound，Docker Compose 部署</td></tr><tr><td>服务较多</td><td><code>*.home.arpa</code> DNS rewrite + Caddy/Traefik 反向代理</td></tr><tr><td>对稳定性敏感</td><td>双 AdGuard 主备，DHCP 下发两个 DNS</td></tr><tr><td>对隐私敏感</td><td>缩短 Query log 保留时间，Unbound 本地递归</td></tr></tbody></table></div><p>一句话：<strong>先把 DNS 做稳，再谈反代、证书、监控和自动化。Homelab 里很多“玄学网络问题”，最后都是 DNS 没设计好。</strong></p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

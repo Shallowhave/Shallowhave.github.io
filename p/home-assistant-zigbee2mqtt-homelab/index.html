@@ -1,0 +1,536 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Homelab 中用 Docker Compose 部署 Home Assistant、Mosquitto 和 Zigbee2MQTT，打通 Zigbee 设备、本地自动化、备份与安全访问，包含串口映射、MQTT 权限、踩坑排查和运维命令。"><title>把智能家居装进 Homelab：Docker 部署 Home Assistant、MQTT 与 Zigbee2MQTT 实战</title><link rel=canonical href=https://shallowhave.github.io/p/home-assistant-zigbee2mqtt-homelab/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="把智能家居装进 Homelab：Docker 部署 Home Assistant、MQTT 与 Zigbee2MQTT 实战"><meta property='og:description' content="在 Homelab 中用 Docker Compose 部署 Home Assistant、Mosquitto 和 Zigbee2MQTT，打通 Zigbee 设备、本地自动化、备份与安全访问，包含串口映射、MQTT 权限、踩坑排查和运维命令。"><meta property='og:url' content='https://shallowhave.github.io/p/home-assistant-zigbee2mqtt-homelab/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-13T09:01:19+08:00'><meta property='article:modified_time' content='2026-05-13T09:01:19+08:00'><meta name=twitter:title content="把智能家居装进 Homelab：Docker 部署 Home Assistant、MQTT 与 Zigbee2MQTT 实战"><meta name=twitter:description content="在 Homelab 中用 Docker Compose 部署 Home Assistant、Mosquitto 和 Zigbee2MQTT，打通 Zigbee 设备、本地自动化、备份与安全访问，包含串口映射、MQTT 权限、踩坑排查和运维命令。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-架构设计为什么拆成三个容器>1. 架构设计：为什么拆成三个容器？</a></li><li><a href=#2-环境准备>2. 环境准备</a></li><li><a href=#3-mosquitto先把-mqtt-权限做好>3. Mosquitto：先把 MQTT 权限做好</a></li><li><a href=#4-zigbee2mqtt-配置>4. Zigbee2MQTT 配置</a></li><li><a href=#5-docker-compose-一次拉起>5. Docker Compose 一次拉起</a></li><li><a href=#6-设备入网与自动化示例>6. 设备入网与自动化示例</a></li><li><a href=#7-运维备份升级与监控>7. 运维：备份、升级与监控</a><ol><li><a href=#71-备份目录>7.1 备份目录</a></li><li><a href=#72-升级策略>7.2 升级策略</a></li><li><a href=#73-健康检查命令>7.3 健康检查命令</a></li></ol></li><li><a href=#8-踩坑记录>8. 踩坑记录</a><ol><li><a href=#-坑-1使用-devttyusb0重启后-zigbee2mqtt-找不到协调器>❌ 坑 1：使用 <code>/dev/ttyUSB0</code>，重启后 Zigbee2MQTT 找不到协调器</a></li><li><a href=#-坑-2mosquitto-开了匿名访问>❌ 坑 2：Mosquitto 开了匿名访问</a></li><li><a href=#-坑-3zigbee-信道和-wi-fi-24g-互相干扰>❌ 坑 3：Zigbee 信道和 Wi-Fi 2.4G 互相干扰</a></li><li><a href=#-坑-4pve-里-usb-省电导致协调器掉线>❌ 坑 4：PVE 里 USB 省电导致协调器掉线</a></li><li><a href=#-坑-5把-network_key-重新生成导致全屋设备掉线>❌ 坑 5：把 <code>network_key</code> 重新生成导致全屋设备掉线</a></li></ol></li><li><a href=#9-最佳实践总结>9. 最佳实践总结</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/home-assistant-zigbee2mqtt-homelab/>把智能家居装进 Homelab：Docker 部署 Home Assistant、MQTT 与 Zigbee2MQTT 实战</a></h2><h3 class=article-subtitle>在 Homelab 中用 Docker Compose 部署 Home Assistant、Mosquitto 和 Zigbee2MQTT，打通 Zigbee 设备、本地自动化、备份与安全访问，包含串口映射、MQTT 权限、踩坑排查和运维命令。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 13, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 8 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>Homelab 玩到一定阶段，除了虚拟化、存储、网络和监控，智能家居通常也会被纳入统一运维体系。原因很简单：Home Assistant 本质上就是一个家庭自动化控制平面，和我们平时管理的服务一样，需要稳定运行、可观测、可备份、可恢复，还要尽量避免云端依赖。</p><p>很多人第一次部署 Home Assistant 会直接用官方 HAOS 镜像，但在已经有 Proxmox VE、Docker 主机或者 NAS 的 Homelab 里，我更推荐先从 <strong>Docker Compose 方案</strong> 开始：依赖关系清晰、迁移简单、配置文件可版本化，后续接入 Zigbee2MQTT、Mosquitto、Node-RED、InfluxDB/Grafana 也更自然。</p><p>本文目标是搭一套本地优先的智能家居基础栈：</p><ul><li>Home Assistant：自动化核心与 Web UI</li><li>Mosquitto：本地 MQTT Broker</li><li>Zigbee2MQTT：把 Zigbee 设备转换成 MQTT 实体</li><li>Docker Compose：声明式部署与日常运维</li><li>备份与排错：避免升级、换主机、USB 设备漂移时翻车</li></ul><blockquote><p>如果你已经在 PVE 里跑了 Docker LXC 或 VM，这套方案可以直接落地。若还没规划容器承载环境，可以先参考站内的 <a class=link href=/p/pve-lxc-container-guide/>Proxmox VE 下 LXC 容器完整实战指南</a> 和 <a class=link href=/p/pve-vlan-bond-firewall/>PVE VLAN、Bond 与防火墙分区实战</a>。</p></blockquote><hr><h2 id=1-架构设计为什么拆成三个容器>1. 架构设计：为什么拆成三个容器？</h2><p>很多初学者会把所有插件都塞进 Home Assistant Add-on，但 Add-on 机制主要服务 HAOS/Supervised 环境。Docker Compose 模式下，更运维友好的做法是把核心组件拆开：</p><div class=table-wrapper><table><thead><tr><th>组件</th><th>作用</th><th>是否有状态</th><th>推荐暴露端口</th></tr></thead><tbody><tr><td>Home Assistant</td><td>自动化编排、Dashboard、设备实体管理</td><td>✅ <code>/config</code></td><td><code>8123/tcp</code></td></tr><tr><td>Mosquitto</td><td>MQTT 消息中转、认证、ACL</td><td>✅ <code>/mosquitto</code></td><td><code>1883/tcp</code>，可选 <code>9001/ws</code></td></tr><tr><td>Zigbee2MQTT</td><td>Zigbee 协调器管理、设备入网、MQTT 转换</td><td>✅ <code>/app/data</code></td><td><code>8080/tcp</code> Web UI</td></tr></tbody></table></div><p>拆分的好处：</p><ol><li><strong>故障域隔离</strong>：Zigbee2MQTT 升级失败不会直接破坏 Home Assistant。</li><li><strong>备份边界清晰</strong>：三个目录就是全部状态，迁移时复制目录即可。</li><li><strong>权限更可控</strong>：MQTT 账户、ACL、串口设备映射都能单独管理。</li><li><strong>更符合 Homelab 运维习惯</strong>：可以被 Watchtower、Portainer、Prometheus、备份脚本统一纳管。</li></ol><p>推荐网络拓扑如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Zigbee 设备
+</span></span><span class=line><span class=cl>   │
+</span></span><span class=line><span class=cl>   ▼
+</span></span><span class=line><span class=cl>Zigbee USB 协调器 ── /dev/serial/by-id/... ── Zigbee2MQTT
+</span></span><span class=line><span class=cl>                                           │
+</span></span><span class=line><span class=cl>                                           ▼
+</span></span><span class=line><span class=cl>                                      Mosquitto MQTT
+</span></span><span class=line><span class=cl>                                           │
+</span></span><span class=line><span class=cl>                                           ▼
+</span></span><span class=line><span class=cl>                                    Home Assistant
+</span></span><span class=line><span class=cl>                                           │
+</span></span><span class=line><span class=cl>                                           ▼
+</span></span><span class=line><span class=cl>                                  自动化 / Dashboard
+</span></span></code></pre></td></tr></table></div></div><p>核心原则：<strong>Zigbee2MQTT 不直接依赖 Home Assistant，二者只通过 MQTT 解耦</strong>。</p><hr><h2 id=2-环境准备>2. 环境准备</h2><p>示例环境：</p><div class=table-wrapper><table><thead><tr><th>项目</th><th>示例值</th></tr></thead><tbody><tr><td>宿主机</td><td>Debian 12 / Ubuntu 22.04 / PVE VM</td></tr><tr><td>Docker</td><td>24.x 或更新</td></tr><tr><td>Compose</td><td>Docker Compose v2</td></tr><tr><td>Zigbee 协调器</td><td>Sonoff ZBDongle-P/E、CC2652P、EFR32MG21 等</td></tr><tr><td>数据目录</td><td><code>/opt/smarthome</code></td></tr></tbody></table></div><p>安装 Docker 的过程不展开，先确认运行环境：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker version
+</span></span><span class=line><span class=cl>docker compose version
+</span></span><span class=line><span class=cl>uname -a
+</span></span></code></pre></td></tr></table></div></div><p>创建目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo mkdir -p /opt/smarthome/<span class=o>{</span>homeassistant,mosquitto/<span class=o>{</span>config,data,log<span class=o>}</span>,zigbee2mqtt<span class=o>}</span>
+</span></span><span class=line><span class=cl>sudo chown -R <span class=nv>$USER</span>:<span class=nv>$USER</span> /opt/smarthome
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /opt/smarthome
+</span></span></code></pre></td></tr></table></div></div><p>插入 Zigbee USB 协调器后，不要直接使用 <code>/dev/ttyUSB0</code>，因为重启或插拔后编号可能变化。正确方式是查找稳定路径：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ls -l /dev/serial/by-id/
+</span></span></code></pre></td></tr></table></div></div><p>输出类似：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_123456-if00-port0 -&gt; ../../ttyUSB0
+</span></span></code></pre></td></tr></table></div></div><p>后续 Compose 中应使用 <code>/dev/serial/by-id/usb-...</code>，这是避免串口漂移的关键。</p><p>如果你跑在 Proxmox VE 虚拟机里，需要把 USB 设备透传给 VM：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在 PVE 宿主机查看 USB 设备</span>
+</span></span><span class=line><span class=cl>lsusb
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 假设 VMID 为 110，把指定 USB 设备透传给虚拟机</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>110</span> -usb0 <span class=nv>host</span><span class=o>=</span>10c4:ea60
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 或者透传整个 USB 端口，适合固定插口</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>110</span> -usb0 <span class=nv>host</span><span class=o>=</span>1-2
+</span></span></code></pre></td></tr></table></div></div><p>LXC 容器也能映射 USB，但权限处理更麻烦。稳定性优先时，我更建议用一个轻量 VM 跑智能家居栈。</p><hr><h2 id=3-mosquitto先把-mqtt-权限做好>3. Mosquitto：先把 MQTT 权限做好</h2><p>先写 Mosquitto 配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt; /opt/smarthome/mosquitto/config/mosquitto.conf <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>persistence true
+</span></span></span><span class=line><span class=cl><span class=s>persistence_location /mosquitto/data/
+</span></span></span><span class=line><span class=cl><span class=s>log_dest file /mosquitto/log/mosquitto.log
+</span></span></span><span class=line><span class=cl><span class=s>log_dest stdout
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>listener 1883
+</span></span></span><span class=line><span class=cl><span class=s>allow_anonymous false
+</span></span></span><span class=line><span class=cl><span class=s>password_file /mosquitto/config/passwd
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s># 如果需要 WebSocket，可打开以下配置
+</span></span></span><span class=line><span class=cl><span class=s># listener 9001
+</span></span></span><span class=line><span class=cl><span class=s># protocol websockets
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><p>创建 MQTT 用户。建议至少拆成两个账号：<code>homeassistant</code> 和 <code>zigbee2mqtt</code>，后续做 ACL 时更细：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run --rm -it <span class=se>\
+</span></span></span><span class=line><span class=cl>  -v /opt/smarthome/mosquitto/config:/mosquitto/config <span class=se>\
+</span></span></span><span class=line><span class=cl>  eclipse-mosquitto:2 <span class=se>\
+</span></span></span><span class=line><span class=cl>  mosquitto_passwd -c /mosquitto/config/passwd homeassistant
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker run --rm -it <span class=se>\
+</span></span></span><span class=line><span class=cl>  -v /opt/smarthome/mosquitto/config:/mosquitto/config <span class=se>\
+</span></span></span><span class=line><span class=cl>  eclipse-mosquitto:2 <span class=se>\
+</span></span></span><span class=line><span class=cl>  mosquitto_passwd /mosquitto/config/passwd zigbee2mqtt
+</span></span></code></pre></td></tr></table></div></div><p>如果是自动化部署，不想交互输入，可以用 <code>-b</code>，但注意命令历史会留下明文密码：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mosquitto_passwd -b /mosquitto/config/passwd homeassistant <span class=s1>&#39;请替换成强密码&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>生产一点的做法是增加 ACL：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt; /opt/smarthome/mosquitto/config/acl <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>user homeassistant
+</span></span></span><span class=line><span class=cl><span class=s>topic readwrite #
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>user zigbee2mqtt
+</span></span></span><span class=line><span class=cl><span class=s>topic readwrite zigbee2mqtt/#
+</span></span></span><span class=line><span class=cl><span class=s>topic readwrite homeassistant/#
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后在 <code>mosquitto.conf</code> 中追加：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>acl_file /mosquitto/config/acl</span>
+</span></span></code></pre></td></tr></table></div></div><p>HomeLab 内部网络虽然可信度更高，但 MQTT 一旦被匿名访问，任何人都可以伪造传感器状态、触发自动化，甚至控制插座和门锁。所以第一步必须关闭匿名访问。</p><hr><h2 id=4-zigbee2mqtt-配置>4. Zigbee2MQTT 配置</h2><p>创建 <code>/opt/smarthome/zigbee2mqtt/configuration.yaml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>homeassistant</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>permit_join</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>mqtt</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>base_topic</span><span class=p>:</span><span class=w> </span><span class=l>zigbee2mqtt</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>server</span><span class=p>:</span><span class=w> </span><span class=l>mqtt://mosquitto:1883</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>user</span><span class=p>:</span><span class=w> </span><span class=l>zigbee2mqtt</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>password</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;请替换成 zigbee2mqtt 的 MQTT 密码&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>serial</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=l>/dev/ttyUSB-zigbee</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>adapter</span><span class=p>:</span><span class=w> </span><span class=l>zstack</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>frontend</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>enabled</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>8080</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>advanced</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>channel</span><span class=p>:</span><span class=w> </span><span class=m>15</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>network_key</span><span class=p>:</span><span class=w> </span><span class=l>GENERATE</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>pan_id</span><span class=p>:</span><span class=w> </span><span class=l>GENERATE</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ext_pan_id</span><span class=p>:</span><span class=w> </span><span class=l>GENERATE</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>log_level</span><span class=p>:</span><span class=w> </span><span class=l>info</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>devices</span><span class=p>:</span><span class=w> </span>{}<span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>groups</span><span class=p>:</span><span class=w> </span>{}<span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>几个关键点：</p><ul><li><code>homeassistant: true</code>：自动发布 MQTT Discovery，HA 会自动出现实体。</li><li><code>permit_join: false</code>：默认禁止入网，避免邻居设备误加入。</li><li><code>network_key: GENERATE</code>：首次启动生成随机密钥；生成后不要随便改，否则所有设备要重新配对。</li><li><code>channel: 15</code>：避开常见 Wi-Fi 2.4G 干扰，具体要结合 AP 信道规划。</li></ul><p>如果你使用 Sonoff ZBDongle-E/EFR32，<code>adapter</code> 可能要改成：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>serial</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>adapter</span><span class=p>:</span><span class=w> </span><span class=l>ember</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>如果是 ZBDongle-P/CC2652P，通常使用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>serial</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>adapter</span><span class=p>:</span><span class=w> </span><span class=l>zstack</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><hr><h2 id=5-docker-compose-一次拉起>5. Docker Compose 一次拉起</h2><p>创建 <code>/opt/smarthome/docker-compose.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>mosquitto</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>eclipse-mosquitto:2</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>mosquitto</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;1883:1883&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./mosquitto/config:/mosquitto/config</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./mosquitto/data:/mosquitto/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./mosquitto/log:/mosquitto/log</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>smarthome</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>homeassistant</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>ghcr.io/home-assistant/home-assistant:stable</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>homeassistant</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>privileged</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>TZ=Asia/Shanghai</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./homeassistant:/config</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/etc/localtime:/etc/localtime:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/run/dbus:/run/dbus:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;8123:8123&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>depends_on</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>mosquitto</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>smarthome</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>zigbee2mqtt</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>koenkk/zigbee2mqtt:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>zigbee2mqtt</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>TZ=Asia/Shanghai</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./zigbee2mqtt:/app/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/run/udev:/run/udev:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>devices</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_123456-if00-port0:/dev/ttyUSB-zigbee</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;8080:8080&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>depends_on</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>mosquitto</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>smarthome</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>smarthome</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>driver</span><span class=p>:</span><span class=w> </span><span class=l>bridge</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>把 <code>devices</code> 左侧路径替换成你自己的 <code>/dev/serial/by-id/...</code>。然后启动：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/smarthome
+</span></span><span class=line><span class=cl>docker compose pull
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker compose ps
+</span></span></code></pre></td></tr></table></div></div><p>看日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker logs -f mosquitto
+</span></span><span class=line><span class=cl>docker logs -f zigbee2mqtt
+</span></span><span class=line><span class=cl>docker logs -f homeassistant
+</span></span></code></pre></td></tr></table></div></div><p>访问入口：</p><ul><li>Home Assistant：<code>http://你的服务器IP:8123</code></li><li>Zigbee2MQTT：<code>http://你的服务器IP:8080</code></li></ul><p>进入 Home Assistant 后，添加 MQTT 集成：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>设置 → 设备与服务 → 添加集成 → MQTT
+</span></span><span class=line><span class=cl>Broker: mosquitto
+</span></span><span class=line><span class=cl>Port: 1883
+</span></span><span class=line><span class=cl>Username: homeassistant
+</span></span><span class=line><span class=cl>Password: 对应密码
+</span></span></code></pre></td></tr></table></div></div><p>如果 Home Assistant 和 Mosquitto 在同一个 Compose 网络里，Broker 可以填 <code>mosquitto</code>；如果从外部访问，填服务器 IP。</p><hr><h2 id=6-设备入网与自动化示例>6. 设备入网与自动化示例</h2><p>临时允许 Zigbee 设备入网：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 修改 configuration.yaml</span>
+</span></span><span class=line><span class=cl>permit_join: <span class=nb>true</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 重启 Zigbee2MQTT</span>
+</span></span><span class=line><span class=cl>docker compose restart zigbee2mqtt
+</span></span></code></pre></td></tr></table></div></div><p>更推荐使用 Zigbee2MQTT 前端 Web UI 临时开启，配对完马上关闭。入网成功后，设备会出现在：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>zigbee2mqtt/&lt;device_name&gt;
+</span></span><span class=line><span class=cl>homeassistant/sensor/&lt;device_name&gt;/...
+</span></span></code></pre></td></tr></table></div></div><p>可以用 MQTT 客户端验证消息：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> -it mosquitto mosquitto_sub <span class=se>\
+</span></span></span><span class=line><span class=cl>  -h localhost <span class=se>\
+</span></span></span><span class=line><span class=cl>  -u homeassistant <span class=se>\
+</span></span></span><span class=line><span class=cl>  -P <span class=s1>&#39;你的密码&#39;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  -t <span class=s1>&#39;zigbee2mqtt/#&#39;</span> -v
+</span></span></code></pre></td></tr></table></div></div><p>一个最小自动化示例：人体传感器检测到移动后打开灯，2 分钟无人后关闭。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>alias</span><span class=p>:</span><span class=w> </span><span class=l>厨房有人自动开灯</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>mode</span><span class=p>:</span><span class=w> </span><span class=l>restart</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>trigger</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>platform</span><span class=p>:</span><span class=w> </span><span class=l>state</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>entity_id</span><span class=p>:</span><span class=w> </span><span class=l>binary_sensor.kitchen_motion_occupancy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>to</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;on&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>action</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>service</span><span class=p>:</span><span class=w> </span><span class=l>light.turn_on</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>target</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>entity_id</span><span class=p>:</span><span class=w> </span><span class=l>light.kitchen_light</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>wait_for_trigger</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>platform</span><span class=p>:</span><span class=w> </span><span class=l>state</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>entity_id</span><span class=p>:</span><span class=w> </span><span class=l>binary_sensor.kitchen_motion_occupancy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>to</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;off&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>for</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;00:02:00&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>service</span><span class=p>:</span><span class=w> </span><span class=l>light.turn_off</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>target</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>entity_id</span><span class=p>:</span><span class=w> </span><span class=l>light.kitchen_light</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>如果想减少误触发，可以加光照条件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>condition</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>condition</span><span class=p>:</span><span class=w> </span><span class=l>numeric_state</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>entity_id</span><span class=p>:</span><span class=w> </span><span class=l>sensor.kitchen_illuminance</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>below</span><span class=p>:</span><span class=w> </span><span class=m>30</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这就是本地自动化的价值：即使外网断了，传感器、MQTT、HA 都在内网，灯光控制仍然可用。</p><hr><h2 id=7-运维备份升级与监控>7. 运维：备份、升级与监控</h2><h3 id=71-备份目录>7.1 备份目录</h3><p>这套方案最重要的状态都在 <code>/opt/smarthome</code>。可以直接用 <code>rsync</code>、<code>restic</code>、<code>borg</code> 或 Proxmox Backup Server 备份。</p><p>简单冷备脚本：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/usr/bin/env bash
+</span></span></span><span class=line><span class=cl><span class=nb>set</span> -euo pipefail
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nv>SRC</span><span class=o>=</span><span class=s2>&#34;/opt/smarthome&#34;</span>
+</span></span><span class=line><span class=cl><span class=nv>DST</span><span class=o>=</span><span class=s2>&#34;/backup/smarthome&#34;</span>
+</span></span><span class=line><span class=cl><span class=nv>DATE</span><span class=o>=</span><span class=s2>&#34;</span><span class=k>$(</span>date +%F-%H%M<span class=k>)</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>mkdir -p <span class=s2>&#34;</span><span class=nv>$DST</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /opt
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker compose -f /opt/smarthome/docker-compose.yml stop
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>tar --xattrs --acls -czf <span class=s2>&#34;</span><span class=nv>$DST</span><span class=s2>/smarthome-</span><span class=nv>$DATE</span><span class=s2>.tar.gz&#34;</span> smarthome
+</span></span><span class=line><span class=cl>sha256sum <span class=s2>&#34;</span><span class=nv>$DST</span><span class=s2>/smarthome-</span><span class=nv>$DATE</span><span class=s2>.tar.gz&#34;</span> &gt; <span class=s2>&#34;</span><span class=nv>$DST</span><span class=s2>/smarthome-</span><span class=nv>$DATE</span><span class=s2>.tar.gz.sha256&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker compose -f /opt/smarthome/docker-compose.yml up -d
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>find <span class=s2>&#34;</span><span class=nv>$DST</span><span class=s2>&#34;</span> -name <span class=s1>&#39;smarthome-*.tar.gz&#39;</span> -mtime +30 -delete
+</span></span></code></pre></td></tr></table></div></div><p>如果你已经部署 PBS，可以把运行该栈的 VM 整机纳入 PBS，同时在应用层额外保留 <code>/opt/smarthome</code> 的压缩包。这样既能快速整机恢复，也能单独取回某个 YAML 配置。</p><h3 id=72-升级策略>7.2 升级策略</h3><p>不要无脑 <code>latest</code> 自动更新。Zigbee2MQTT 与 Home Assistant 都可能存在破坏性变更。更稳的升级流程：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/smarthome
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 1. 先备份</span>
+</span></span><span class=line><span class=cl>tar -czf ~/smarthome-before-upgrade-<span class=k>$(</span>date +%F<span class=k>)</span>.tar.gz .
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 拉取镜像</span>
+</span></span><span class=line><span class=cl>docker compose pull
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. 重启</span>
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 4. 观察日志</span>
+</span></span><span class=line><span class=cl>docker compose logs -f --tail<span class=o>=</span><span class=m>100</span> homeassistant zigbee2mqtt mosquitto
+</span></span></code></pre></td></tr></table></div></div><p>如果升级后异常，回滚：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose down
+</span></span><span class=line><span class=cl>rm -rf /opt/smarthome
+</span></span><span class=line><span class=cl>mkdir -p /opt/smarthome
+</span></span><span class=line><span class=cl>tar -xzf ~/smarthome-before-upgrade-YYYY-MM-DD.tar.gz -C /opt/smarthome --strip-components<span class=o>=</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span></code></pre></td></tr></table></div></div><p>更严谨的做法是固定镜像版本，例如：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>ghcr.io/home-assistant/home-assistant:2026.5</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>koenkk/zigbee2mqtt:2.3.0</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=73-健康检查命令>7.3 健康检查命令</h3><p>常用排查命令：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 容器状态</span>
+</span></span><span class=line><span class=cl>docker compose ps
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># MQTT 是否可登录</span>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it mosquitto mosquitto_sub -h localhost -u homeassistant -P <span class=s1>&#39;密码&#39;</span> -t <span class=s1>&#39;$SYS/#&#39;</span> -C <span class=m>5</span> -v
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Zigbee 串口是否存在</span>
+</span></span><span class=line><span class=cl>ls -l /dev/serial/by-id/
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Zigbee2MQTT 是否占用串口</span>
+</span></span><span class=line><span class=cl>lsof /dev/ttyUSB0 <span class=o>||</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Home Assistant 配置检查</span>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it homeassistant python -m homeassistant --script check_config --config /config
+</span></span></code></pre></td></tr></table></div></div><p>如果已有 Prometheus/Grafana，可以把容器指标接入 cAdvisor，把 Home Assistant 的 <code>/api/prometheus</code> 暴露出来，统一看自动化系统状态。监控栈可参考 <a class=link href=/p/homelab-monitoring-stack-guide/>Prometheus + Grafana 全栈监控告警体系搭建指南</a>。</p><hr><h2 id=8-踩坑记录>8. 踩坑记录</h2><h3 id=-坑-1使用-devttyusb0重启后-zigbee2mqtt-找不到协调器>❌ 坑 1：使用 <code>/dev/ttyUSB0</code>，重启后 Zigbee2MQTT 找不到协调器</h3><p>现象：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Error: Error while opening serialport &#39;Error: No such file or directory, cannot open /dev/ttyUSB0&#39;
+</span></span></code></pre></td></tr></table></div></div><p>根因：USB 设备编号不稳定。解决：使用 <code>/dev/serial/by-id/...</code> 并映射成容器内固定路径：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>devices</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>/dev/serial/by-id/usb-xxx:/dev/ttyUSB-zigbee</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=-坑-2mosquitto-开了匿名访问>❌ 坑 2：Mosquitto 开了匿名访问</h3><p>现象：任何内网主机都可以发布 MQTT 消息，Home Assistant 出现奇怪实体或自动化被误触发。</p><p>解决：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>allow_anonymous false</span>
+</span></span><span class=line><span class=cl><span class=na>password_file /mosquitto/config/passwd</span>
+</span></span><span class=line><span class=cl><span class=na>acl_file /mosquitto/config/acl</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后重启：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose restart mosquitto
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-3zigbee-信道和-wi-fi-24g-互相干扰>❌ 坑 3：Zigbee 信道和 Wi-Fi 2.4G 互相干扰</h3><p>Zigbee 和 2.4G Wi-Fi 同频段。常见建议：</p><div class=table-wrapper><table><thead><tr><th>Wi-Fi 信道</th><th>Zigbee 推荐信道</th></tr></thead><tbody><tr><td>Wi-Fi 1</td><td>Zigbee 15 / 20</td></tr><tr><td>Wi-Fi 6</td><td>Zigbee 20 / 25</td></tr><tr><td>Wi-Fi 11</td><td>Zigbee 15 / 20</td></tr></tbody></table></div><p>注意：Zigbee 网络建好后改信道，很多设备需要重新入网，所以一开始就要规划好。</p><h3 id=-坑-4pve-里-usb-省电导致协调器掉线>❌ 坑 4：PVE 里 USB 省电导致协调器掉线</h3><p>如果日志里频繁出现串口断开，可以在宿主机检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>dmesg -T <span class=p>|</span> grep -iE <span class=s1>&#39;usb|ttyUSB|cp210x|ch341&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>可以尝试关闭 USB autosuspend：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat /sys/module/usbcore/parameters/autosuspend
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 临时关闭</span>
+</span></span><span class=line><span class=cl><span class=nb>echo</span> -1 <span class=p>|</span> sudo tee /sys/module/usbcore/parameters/autosuspend
+</span></span></code></pre></td></tr></table></div></div><p>永久配置可在 GRUB 里加入：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>GRUB_CMDLINE_LINUX_DEFAULT</span><span class=o>=</span><span class=s>&#34;quiet usbcore.autosuspend=-1&#34;</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>update-grub
+</span></span><span class=line><span class=cl>reboot
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-5把-network_key-重新生成导致全屋设备掉线>❌ 坑 5：把 <code>network_key</code> 重新生成导致全屋设备掉线</h3><p><code>network_key</code> 是 Zigbee 网络的身份根密钥。首次 <code>GENERATE</code> 后，Zigbee2MQTT 会写入具体值。迁移或恢复时必须保留该文件，不要重新生成。否则所有设备都认为这是一个新网络，需要重新配对。</p><hr><h2 id=9-最佳实践总结>9. 最佳实践总结</h2><div class=table-wrapper><table><thead><tr><th>场景</th><th>推荐做法</th><th>理由</th></tr></thead><tbody><tr><td>部署方式</td><td>Docker Compose</td><td>可迁移、可版本化、便于和 Homelab 其他服务统一管理</td></tr><tr><td>MQTT 安全</td><td>禁止匿名 + 独立账号 + ACL</td><td>防止伪造设备状态和误触发自动化</td></tr><tr><td>串口映射</td><td><code>/dev/serial/by-id</code></td><td>避免重启后 <code>/dev/ttyUSB0</code> 漂移</td></tr><tr><td>Zigbee 入网</td><td>默认关闭 <code>permit_join</code></td><td>减少误入网和安全风险</td></tr><tr><td>升级策略</td><td>先备份，后升级，观察日志</td><td>HA/Z2M 更新频繁，避免破坏性变更翻车</td></tr><tr><td>备份策略</td><td>应用目录 + VM 整机双备份</td><td>同时满足快速恢复和精细恢复</td></tr></tbody></table></div><h2 id=总结>总结</h2><p>Home Assistant 不是一个“装完就算”的玩具服务，而是 Homelab 里一个非常典型的本地控制平面。真正稳定的智能家居栈，关键不在于接了多少设备，而在于：MQTT 权限是否收紧、Zigbee 协调器路径是否稳定、配置是否可备份、升级是否可回滚。</p><p>如果只记住一句话：<strong>把 Home Assistant 当作生产服务来运维，用 Docker Compose 固化组件边界，用 MQTT 解耦设备通信，用备份和日志兜底升级风险。</strong></p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

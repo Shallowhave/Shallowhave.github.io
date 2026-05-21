@@ -1,0 +1,432 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Homelab 中使用 Docker Compose 部署 Traefik 反向代理，自动申请 Let's Encrypt SSL 证书，统一管理内外网服务入口，告别手动配置 Nginx 和续期证书的烦恼。"><title>Homelab 必备：Traefik 反向代理 + SSL 证书自动化部署指南</title><link rel=canonical href=https://shallowhave.github.io/p/traefik-reverse-proxy-homelab/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Homelab 必备：Traefik 反向代理 + SSL 证书自动化部署指南"><meta property='og:description' content="在 Homelab 中使用 Docker Compose 部署 Traefik 反向代理，自动申请 Let's Encrypt SSL 证书，统一管理内外网服务入口，告别手动配置 Nginx 和续期证书的烦恼。"><meta property='og:url' content='https://shallowhave.github.io/p/traefik-reverse-proxy-homelab/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2024-07-15T17:12:00+08:00'><meta property='article:modified_time' content='2024-07-15T17:12:00+08:00'><meta name=twitter:title content="Homelab 必备：Traefik 反向代理 + SSL 证书自动化部署指南"><meta name=twitter:description content="在 Homelab 中使用 Docker Compose 部署 Traefik 反向代理，自动申请 Let's Encrypt SSL 证书，统一管理内外网服务入口，告别手动配置 Nginx 和续期证书的烦恼。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-架构概览>1. 架构概览</a></li><li><a href=#2-准备工作>2. 准备工作</a><ol><li><a href=#21-网络与域名>2.1 网络与域名</a></li><li><a href=#22-创建-docker-网络>2.2 创建 Docker 网络</a></li></ol></li><li><a href=#3-部署-traefik>3. 部署 Traefik</a><ol><li><a href=#31-目录结构>3.1 目录结构</a></li><li><a href=#32-docker-compose-配置>3.2 Docker Compose 配置</a></li><li><a href=#33-traefik-静态配置>3.3 Traefik 静态配置</a></li><li><a href=#34-环境变量>3.4 环境变量</a></li><li><a href=#35-启动-traefik>3.5 启动 Traefik</a></li></ol></li><li><a href=#4-添加反向代理服务>4. 添加反向代理服务</a><ol><li><a href=#41-例-1反向代理-portainer>4.1 例 1：反向代理 Portainer</a></li><li><a href=#42-例-2反向代理-home-assistant>4.2 例 2：反向代理 Home Assistant</a></li><li><a href=#43-例-3同时代理多个子域名通配符证书>4.3 例 3：同时代理多个子域名（通配符证书）</a></li><li><a href=#44-中间件给服务加-ip-白名单>4.4 中间件：给服务加 IP 白名单</a></li></ol></li><li><a href=#5-踩坑记录>5. 踩坑记录</a><ol><li><a href=#-坑-1acmejson-权限问题>❌ 坑 1：acme.json 权限问题</a></li><li><a href=#-坑-2dns-挑战失败cloudflare>❌ 坑 2：DNS 挑战失败（Cloudflare）</a></li><li><a href=#-坑-3dashboard-暴露到公网>❌ 坑 3：Dashboard 暴露到公网</a></li><li><a href=#-坑-4容器重启后-ip-变化>❌ 坑 4：容器重启后 IP 变化</a></li></ol></li><li><a href=#6-进阶uptime-kuma-监控你的所有服务>6. 进阶：Uptime Kuma 监控你的所有服务</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/traefik-reverse-proxy-homelab/>Homelab 必备：Traefik 反向代理 + SSL 证书自动化部署指南</a></h2><h3 class=article-subtitle>在 Homelab 中使用 Docker Compose 部署 Traefik 反向代理，自动申请 Let's Encrypt SSL 证书，统一管理内外网服务入口，告别手动配置 Nginx 和续期证书的烦恼。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>Jul 15, 2024</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 6 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>Homelab 玩到一定程度，你就会面临一个经典问题：服务越来越多。</p><p>PVE 管理后台、Docker 上的 Portainer、Home Assistant、Jellyfin 媒体服务器、Grafana 监控面板……每个服务都有一个不同的端口号，每次访问都要记 <code>192.168.1.100:9000</code>、<code>:8123</code>、<code>:3000</code>，不仅不方便，还容易搞混。</p><p>解决方案就是<strong>反向代理</strong> —— 通过域名访问所有服务：</p><ul><li><code>ha.yourlab.com</code> → Home Assistant</li><li><code>portainer.yourlab.com</code> → Portainer</li><li><code>grafana.yourlab.com</code> → Grafana</li><li><code>jellyfin.yourlab.com</code> → Jellyfin</li></ul><p>而 Traefik 是目前最适合 Docker 环境下的反向代理方案之一。相比 Nginx 需要手动维护配置文件，Traefik 可以<strong>自动</strong>监听 Docker 容器，通过容器 Label 自动配置路由，还能自动申请和续期 Let&rsquo;s Encrypt SSL 证书。真正做到"加一个新服务，改几行 docker-compose 配置，Traefik 全自动搞定"。</p><p>本文带你从零搭建一套 Traefik 反向代理，完整覆盖 HTTPS、Let&rsquo;s Encrypt 自动证书、Dashboard 监控和常见服务接入。</p><hr><h2 id=1-架构概览>1. 架构概览</h2><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>        Internet
+</span></span><span class=line><span class=cl>           │
+</span></span><span class=line><span class=cl>        🔒 443 (HTTPS)
+</span></span><span class=line><span class=cl>           │
+</span></span><span class=line><span class=cl>    ┌──────▼──────┐
+</span></span><span class=line><span class=cl>    │   Traefik   │  ← 自动申请 Let&#39;s Encrypt 证书
+</span></span><span class=line><span class=cl>    │  (Proxy)    │
+</span></span><span class=line><span class=cl>    └──┬──┬──┬───┘
+</span></span><span class=line><span class=cl>       │  │  │
+</span></span><span class=line><span class=cl>  ┌────▼┐ │ └──────┐
+</span></span><span class=line><span class=cl>  │ HA  │ │        │
+</span></span><span class=line><span class=cl>  └─────┘ │   ┌────▼──┐
+</span></span><span class=line><span class=cl>          │   │Jelly..│
+</span></span><span class=line><span class=cl>    ┌─────▼──┐└───────┘
+</span></span><span class=line><span class=cl>    │Portn.. │
+</span></span><span class=line><span class=cl>    └────────┘
+</span></span></code></pre></td></tr></table></div></div><p>Traefik 监听宿主机的 80 和 443 端口，通过 Docker Socket 自动发现容器，根据容器 Label 自动配置路由。Let&rsquo;s Encrypt 使用 HTTP-01 或 TLS-ALPN-01 验证域名所有权，自动签发和续期证书。</p><hr><h2 id=2-准备工作>2. 准备工作</h2><h3 id=21-网络与域名>2.1 网络与域名</h3><p>你需要：</p><ol><li><strong>一个公网域名</strong>（或内网 DNS）—— 推荐在 Cloudflare、阿里云、腾讯云等平台注册一个域名</li><li><strong>域名解析到你的 Homelab 公网 IP</strong>（如果服务需要外网访问）</li><li><strong>开放防火墙的 80 和 443 端口</strong></li></ol><p>如果你只在内网使用，也可以用内网 DNS 或修改 <code>/etc/hosts</code>，但 Traefik 的 Let&rsquo;s Encrypt 功能仍需要域名能公网解析。对于纯内网场景，可以使用 Traefik 的自签证书或跳过 TLS，后续我会另写文章介绍。</p><h3 id=22-创建-docker-网络>2.2 创建 Docker 网络</h3><p>为了让 Traefik 能和所有后端容器通信，先创建一个共享网络：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker network create traefik-net
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>所有需要经过 Traefik 反向代理的容器都要接入这个网络。</p></blockquote><hr><h2 id=3-部署-traefik>3. 部署 Traefik</h2><h3 id=31-目录结构>3.1 目录结构</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p ~/docker/traefik <span class=o>&amp;&amp;</span> <span class=nb>cd</span> ~/docker/traefik
+</span></span><span class=line><span class=cl>touch acme.json     <span class=c1># Let&#39;s Encrypt 证书存储文件</span>
+</span></span><span class=line><span class=cl>chmod <span class=m>600</span> acme.json <span class=c1># 重要！权限必须是 600，否则 Traefik 拒绝启动</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=32-docker-compose-配置>3.2 Docker Compose 配置</h3><p>创建 <code>docker-compose.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>version</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;3.8&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>traefik</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>traefik:v3.1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>traefik</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>security_opt</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=kc>no</span>-<span class=l>new-privileges:true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>traefik-net</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;80:80&#34;</span><span class=w>     </span><span class=c># HTTP 重定向到 HTTPS</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;443:443&#34;</span><span class=w>   </span><span class=c># HTTPS</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># - &#34;8080:8080&#34;  # Dashboard（建议通过反向代理访问，不暴露端口）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>CF_API_EMAIL=${CF_API_EMAIL}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># 使用其他 DNS 提供商时修改为对应的环境变量</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/etc/localtime:/etc/localtime:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/run/docker.sock:/var/run/docker.sock:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./traefik.yml:/traefik.yml:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./acme.json:/acme.json</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./config:/config</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.enable=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># Dashboard 路由</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.dashboard.rule=Host(`traefik.yourlab.com`)&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.dashboard.service=api@internal&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.dashboard.middlewares=auth&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># 中间件：Dashboard 基础认证</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.middlewares.auth.basicauth.users=${DASHBOARD_USER}:${DASHBOARD_PASS_HASH}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>traefik-net</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>external</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=33-traefik-静态配置>3.3 Traefik 静态配置</h3><p>创建 <code>traefik.yml</code>（注意不是 traefik.yaml，是 .yml）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=c># 全局配置</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>global</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>sendAnonymousUsage</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 日志级别: DEBUG, INFO, WARN, ERROR</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>log</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>level</span><span class=p>:</span><span class=w> </span><span class=l>INFO</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># API 和 Dashboard</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>api</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>dashboard</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>debug</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 入口点</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>entryPoints</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>web</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>address</span><span class=p>:</span><span class=w> </span><span class=p>:</span><span class=m>80</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>http</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>redirections</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>entrypoint</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>to</span><span class=p>:</span><span class=w> </span><span class=l>websecure</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>scheme</span><span class=p>:</span><span class=w> </span><span class=l>https</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>permanent</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>websecure</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>address</span><span class=p>:</span><span class=w> </span><span class=p>:</span><span class=m>443</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 证书配置（Let&#39;s Encrypt）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>certificatesResolvers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>letsencrypt</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>acme</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>email</span><span class=p>:</span><span class=w> </span><span class=l>your-email@example.com    </span><span class=w> </span><span class=c># ← 改成你的邮箱</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>storage</span><span class=p>:</span><span class=w> </span><span class=l>/acme.json</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># DNS-01 挑战（推荐，支持通配符证书）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>dnsChallenge</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>provider</span><span class=p>:</span><span class=w> </span><span class=l>cloudflare             </span><span class=w> </span><span class=c># ← 根据你的 DNS 提供商修改</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>resolvers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span>- <span class=s2>&#34;1.1.1.1:53&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span>- <span class=s2>&#34;8.8.8.8:53&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># 如果使用 HTTP-01 挑战，注释掉上面的 dnsChallenge，取消注释下面：</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># httpChallenge:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c>#   entryPoint: web</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 开启 Docker 服务发现</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>providers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>docker</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>endpoint</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;unix:///var/run/docker.sock&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>exposedByDefault</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>   </span><span class=c># 只有打了 traefik.enable=true 标签的容器才被代理</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>file</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>directory</span><span class=p>:</span><span class=w> </span><span class=l>/config       </span><span class=w> </span><span class=c># 外部配置文件目录</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>watch</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=34-环境变量>3.4 环境变量</h3><p>创建 <code>.env</code> 文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># DNS API 凭据（以 Cloudflare 为例）</span>
+</span></span><span class=line><span class=cl><span class=nv>CF_API_EMAIL</span><span class=o>=</span>your-cloudflare-email@example.com
+</span></span><span class=line><span class=cl><span class=nv>CF_DNS_API_TOKEN</span><span class=o>=</span>your_cloudflare_api_token
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Dashboard 认证（用户名:密码的 bcrypt 哈希）</span>
+</span></span><span class=line><span class=cl><span class=nv>DASHBOARD_USER</span><span class=o>=</span>admin
+</span></span><span class=line><span class=cl><span class=nv>DASHBOARD_PASS_HASH</span><span class=o>=</span><span class=k>$(</span>htpasswd -nb admin yourpassword <span class=p>|</span> sed <span class=s1>&#39;s/\$/$$/g&#39;</span><span class=k>)</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>生成 bcrypt 密码哈希：<code>docker run --rm httpd:alpine htpasswd -nb admin 你的密码</code></p></blockquote><h3 id=35-启动-traefik>3.5 启动 Traefik</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker compose logs -f  <span class=c1># 查看启动日志</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果一切正常，你应该能看到 Let&rsquo;s Encrypt 证书成功申请的信息。访问 <code>https://traefik.yourlab.com</code> 就能看到 Traefik Dashboard 了。</p><hr><h2 id=4-添加反向代理服务>4. 添加反向代理服务</h2><h3 id=41-例-1反向代理-portainer>4.1 例 1：反向代理 Portainer</h3><p>Portainer 是管理 Docker 的利器，给它加上 Traefik 路由：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>version</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;3.8&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>portainer</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>portainer/portainer-ce:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>portainer</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>traefik-net   </span><span class=w> </span><span class=c># 使用 Traefik 网络</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/run/docker.sock:/var/run/docker.sock</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>portainer_data:/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.enable=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.portainer.rule=Host(`portainer.yourlab.com`)&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.portainer.entrypoints=websecure&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.portainer.tls=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.portainer.tls.certresolver=letsencrypt&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.services.portainer.loadbalancer.server.port=9000&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>portainer_data</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>traefik-net</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>external</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><code>docker compose up -d</code> 之后，访问 <code>https://portainer.yourlab.com</code> 即可。Traefik 会自动为这个域名申请证书。</p><h3 id=42-例-2反向代理-home-assistant>4.2 例 2：反向代理 Home Assistant</h3><p>Home Assistant 运行在宿主机或 PVE 的 LXC 中时，可以用 file provider 方式代理。但如果 HA 也在 Docker 里，同样的 Label 方式：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=w>  </span><span class=nt>homeassistant</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>ghcr.io/home-assistant/home-assistant:stable</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>homeassistant</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>traefik-net</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./ha_config:/config</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/etc/localtime:/etc/localtime:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.enable=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.ha.rule=Host(`ha.yourlab.com`)&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.ha.entrypoints=websecure&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.ha.tls=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.ha.tls.certresolver=letsencrypt&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.services.ha.loadbalancer.server.port=8123&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 如果 HA 需要通过 HomeKit 或 WebSocket，可以额外暴露端口</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># ports:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c>#   - &#34;8123:8123&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>devices</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/dev/ttyUSB0:/dev/ttyUSB0  </span><span class=w> </span><span class=c># Zigbee 协调器直通</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=43-例-3同时代理多个子域名通配符证书>4.3 例 3：同时代理多个子域名（通配符证书）</h3><p>如果使用 DNS-01 挑战，Traefik 可以申请通配符证书 <code>*.yourlab.com</code>。只需在路由上移除 <code>certresolver</code> 配置，Traefik 会自动使用已签发的通配符证书。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=w>  </span><span class=c># 所有服务都可以这样配置，无需单独申请证书</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=s2>&#34;traefik.enable=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=s2>&#34;traefik.http.routers.xxx.rule=Host(`xxx.yourlab.com`)&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=s2>&#34;traefik.http.routers.xxx.entrypoints=websecure&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=s2>&#34;traefik.http.routers.xxx.tls=true&#34;</span><span class=w>        </span><span class=c># 隐式使用通配符证书</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=s2>&#34;traefik.http.services.xxx.loadbalancer.server.port=8080&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=44-中间件给服务加-ip-白名单>4.4 中间件：给服务加 IP 白名单</h3><p>不想让某些服务暴露在公网？加个 IP 白名单中间件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=s2>&#34;traefik.enable=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=s2>&#34;traefik.http.routers.grafana.rule=Host(`grafana.yourlab.com`)&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=s2>&#34;traefik.http.routers.grafana.middlewares=whitelist&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=s2>&#34;traefik.http.middlewares.whitelist.ipwhitelist.sourcerange=192.168.0.0/16,10.0.0.0/8&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这样只有内网 IP 才能访问 Grafana，外网用户即使知道域名也打不开。</p><hr><h2 id=5-踩坑记录>5. 踩坑记录</h2><h3 id=-坑-1acmejson-权限问题>❌ 坑 1：acme.json 权限问题</h3><p>Traefik 出于安全考虑，拒绝使用权限过于开放的 acme.json。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 正确姿势</span>
+</span></span><span class=line><span class=cl>touch acme.json
+</span></span><span class=line><span class=cl>chmod <span class=m>600</span> acme.json
+</span></span><span class=line><span class=cl><span class=c1># 如果 chmod 600 后还报错，确认不是 root:root 以外属主</span>
+</span></span></code></pre></td></tr></table></div></div><p>错误日志：<code>permission denied for /acme.json</code></p><h3 id=-坑-2dns-挑战失败cloudflare>❌ 坑 2：DNS 挑战失败（Cloudflare）</h3><p>Traefik 使用 Cloudflare DNS 挑战时，需要 API Token 有 <code>Zone:DNS:Edit</code> 权限。如果只给了 Read，会一直报错：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>acme: error: 403 :: POST :: https://api.cloudflare.com/client/v4/zones/xxx/dns_records
+</span></span></code></pre></td></tr></table></div></div><p>需要去 Cloudflare Dashboard → My Profile → API Tokens，创建 token 时勾选 <strong>Zone → DNS → Edit</strong> 权限。</p><h3 id=-坑-3dashboard-暴露到公网>❌ 坑 3：Dashboard 暴露到公网</h3><p>默认 Dashboard 绑定在 <code>:8080</code>，如果不加认证直接暴露到公网非常危险。我上面的配置通过反向代理访问 Dashboard，并加了 Basic Auth 中间件。或者你也可以在 <code>traefik.yml</code> 中只监听本地：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>api</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>dashboard</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c># 只监听本地</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c># （不配置 entrypoint，仅在反向代理路由中暴露）</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=-坑-4容器重启后-ip-变化>❌ 坑 4：容器重启后 IP 变化</h3><p>Docker 容器重启后 IP 会变，但 Traefik 通过 Docker provider 自动感知容器变化，所以不用担心。但如果你用 <code>file provider</code> 配置了后端地址，记得用容器名而不是 IP：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=c># /config/dynamic.yml</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>http</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>my-service</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>loadBalancer</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>servers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span>- <span class=nt>url</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;http://my-container-name:8080&#34;</span><span class=w>  </span><span class=c># ✅ Docker DNS 解析</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><hr><h2 id=6-进阶uptime-kuma-监控你的所有服务>6. 进阶：Uptime Kuma 监控你的所有服务</h2><p>有了 Traefik 后，再部署一个 Uptime Kuma 来监控所有服务的可用性：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=w>  </span><span class=nt>uptime-kuma</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>louislam/uptime-kuma:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>uptime-kuma</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>traefik-net</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./uptime-kuma-data:/app/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.enable=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.kuma.rule=Host(`status.yourlab.com`)&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.kuma.entrypoints=websecure&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.kuma.tls=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.kuma.tls.certresolver=letsencrypt&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.services.kuma.loadbalancer.server.port=3001&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>Uptime Kuma 可以监控 HTTP、TCP、Ping 等，一旦某个服务挂了，会通过 Telegram、邮件、Webhook 等方式告警，是 Homelab 运维的好帮手。</p><hr><h2 id=总结>总结</h2><p>有了 Traefik 之后，你的 Homelab 服务管理会变得无比清爽：</p><div class=table-wrapper><table><thead><tr><th>功能</th><th>效果</th></tr></thead><tbody><tr><td>✅ 统一入口</td><td>所有服务通过域名访问，告别记端口号</td></tr><tr><td>✅ 自动 HTTPS</td><td>Let&rsquo;s Encrypt 自动签发和续期，零维护</td></tr><tr><td>✅ 通配符证书</td><td>一个证书覆盖所有子域名</td></tr><tr><td>✅ Docker 自动发现</td><td>加新服务只需加 Label，无需重启 Traefik</td></tr><tr><td>✅ 中间件生态</td><td>IP 白名单、Basic Auth、Rate Limit 开箱即用</td></tr></tbody></table></div><p><strong>下一步可以做的事情：</strong></p><ol><li>部署 <strong>Uptime Kuma</strong> 实现服务可用性监控</li><li>集成 <strong>Grafana + Prometheus</strong> 监控 PVE 和 Docker 主机资源</li><li>使用 <strong>Traefik Plugin</strong> 实现更丰富的中间件功能（如 OAuth 代理、GeoIP 限制）</li><li>配合 <strong>Cloudflare Tunnel</strong> 实现无公网 IP 的内网穿透</li></ol><p>如果你目前还在用 Nginx 手动维护反代配置，强烈建议试试 Traefik — 尤其是在 Docker 环境下，它带来的"声明式配置"体验是革命性的。</p><blockquote><p><strong>预告：</strong> 下一篇文章将介绍如何在 PVE 中部署 Grafana + Prometheus + Node Exporter 全面监控你的 Homelab 集群资源使用情况。</p></blockquote></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

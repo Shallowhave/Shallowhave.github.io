@@ -1,0 +1,667 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Proxmox VE Homelab 中，用 Docker Compose 一键部署 Prometheus、Grafana、Node Exporter、Uptime Kuma 和 Alertmanager，构建从宿主机指标到服务可用性的全方位监控告警系统，支持 Telegram 实时推送。"><title>Homelab 必备：Prometheus + Grafana 全栈监控告警体系搭建指南</title><link rel=canonical href=https://shallowhave.github.io/p/homelab-monitoring-stack-guide/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Homelab 必备：Prometheus + Grafana 全栈监控告警体系搭建指南"><meta property='og:description' content="在 Proxmox VE Homelab 中，用 Docker Compose 一键部署 Prometheus、Grafana、Node Exporter、Uptime Kuma 和 Alertmanager，构建从宿主机指标到服务可用性的全方位监控告警系统，支持 Telegram 实时推送。"><meta property='og:url' content='https://shallowhave.github.io/p/homelab-monitoring-stack-guide/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-06T09:01:07+08:00'><meta property='article:modified_time' content='2026-05-06T09:01:07+08:00'><meta name=twitter:title content="Homelab 必备：Prometheus + Grafana 全栈监控告警体系搭建指南"><meta name=twitter:description content="在 Proxmox VE Homelab 中，用 Docker Compose 一键部署 Prometheus、Grafana、Node Exporter、Uptime Kuma 和 Alertmanager，构建从宿主机指标到服务可用性的全方位监控告警系统，支持 Telegram 实时推送。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#整体架构>整体架构</a></li><li><a href=#第一步docker-compose-部署监控栈>第一步：Docker Compose 部署监控栈</a><ol><li><a href=#docker-composeyml>docker-compose.yml</a></li><li><a href=#第二步prometheus-配置文件>第二步：Prometheus 配置文件</a></li><li><a href=#第三步告警规则>第三步：告警规则</a></li><li><a href=#第四步alertmanager-配置与-telegram-通知>第四步：Alertmanager 配置与 Telegram 通知</a></li><li><a href=#第五步blackbox-exporter-配置>第五步：Blackbox Exporter 配置</a></li><li><a href=#第六步grafana-自动配置>第六步：Grafana 自动配置</a></li><li><a href=#一键启动>一键启动</a></li></ol></li><li><a href=#踩坑与优化>踩坑与优化</a><ol><li><a href=#1-存储-retention-策略>1. 存储 Retention 策略</a></li><li><a href=#2-node-exporter-在-pve-lxc-中的注意事项>2. Node Exporter 在 PVE LXC 中的注意事项</a></li><li><a href=#3-grafana-内存占用过高>3. Grafana 内存占用过高</a></li><li><a href=#4-uptime-kuma-与-prometheus-数据源>4. Uptime Kuma 与 Prometheus 数据源</a></li></ol></li><li><a href=#集成-traefik>集成 Traefik</a></li><li><a href=#告警效果>告警效果</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/homelab-monitoring-stack-guide/>Homelab 必备：Prometheus + Grafana 全栈监控告警体系搭建指南</a></h2><h3 class=article-subtitle>在 Proxmox VE Homelab 中，用 Docker Compose 一键部署 Prometheus、Grafana、Node Exporter、Uptime Kuma 和 Alertmanager，构建从宿主机指标到服务可用性的全方位监控告警系统，支持 Telegram 实时推送。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 06, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 8 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>Homelab 跑了大半年，服务从 PVE 虚拟机到 Docker 容器越堆越多——Jellyfin、Home Assistant、Traefik、Portainer、Grafana……直到有一天 2TB 的 ZFS 池被日志撑爆，磁盘 IO 飙到 100% 系统卡成 PPT，我才意识到一个严肃的问题：<strong>我根本不知道我的 Homelab 里正在发生什么。</strong></p><p>没有监控，就是盲人摸象。本文手把手教你搭建一套完整的 Homelab 监控体系，覆盖以下场景：</p><ul><li><strong>宿主机层</strong>：PVE 宿主机的 CPU、内存、磁盘、网络、ZFS ARC 命中率</li><li><strong>服务层</strong>：Docker 中各容器的资源占用、运行状态、HTTP 可达性</li><li><strong>告警层</strong>：当磁盘快满、服务挂了、证书快过期时，Telegram 机器人直接通知到手机</li></ul><p>整套方案基于 Docker Compose 一键部署，与之前搭建的 <a class=link href=/post/traefik-reverse-proxy-homelab/>Traefik 反向代理</a> 无缝集成。</p><h2 id=整体架构>整体架构</h2><p>我们使用以下组件组成监控栈：</p><div class=table-wrapper><table><thead><tr><th>组件</th><th>作用</th><th>镜像</th></tr></thead><tbody><tr><td><strong>Prometheus</strong></td><td>时序数据库，存储所有指标</td><td><code>prom/prometheus</code></td></tr><tr><td><strong>Node Exporter</strong></td><td>采集宿主机系统指标</td><td><code>prom/node-exporter</code></td></tr><tr><td><strong>cAdvisor</strong></td><td>采集 Docker 容器指标</td><td><code>gcr.io/cadvisor/cadvisor</code></td></tr><tr><td><strong>Grafana</strong></td><td>可视化仪表盘</td><td><code>grafana/grafana</code></td></tr><tr><td><strong>Uptime Kuma</strong></td><td>外部服务可用性监控</td><td><code>louislam/uptime-kuma</code></td></tr><tr><td><strong>Alertmanager</strong></td><td>告警聚合与路由分发</td><td><code>prom/alertmanager</code></td></tr><tr><td><strong>Blackbox Exporter</strong></td><td>HTTP/HTTPS/TCP 探针</td><td><code>prom/blackbox-exporter</code></td></tr></tbody></table></div><p>数据流：<code>Node Exporter / cAdvisor / Blackbox Exporter → Prometheus (抓取) → Grafana (展示) + Alertmanager (告警规则匹配) → Telegram Bot (推送)</code></p><h2 id=第一步docker-compose-部署监控栈>第一步：Docker Compose 部署监控栈</h2><p>在 PVE 的 CT（推荐 Debian 或 Ubuntu LXC）或 VM 中，创建一个 <code>monitoring</code> 项目目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p ~/monitoring <span class=o>&amp;&amp;</span> <span class=nb>cd</span> ~/monitoring
+</span></span></code></pre></td></tr></table></div></div><h3 id=docker-composeyml>docker-compose.yml</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>  1
+</span><span class=lnt>  2
+</span><span class=lnt>  3
+</span><span class=lnt>  4
+</span><span class=lnt>  5
+</span><span class=lnt>  6
+</span><span class=lnt>  7
+</span><span class=lnt>  8
+</span><span class=lnt>  9
+</span><span class=lnt> 10
+</span><span class=lnt> 11
+</span><span class=lnt> 12
+</span><span class=lnt> 13
+</span><span class=lnt> 14
+</span><span class=lnt> 15
+</span><span class=lnt> 16
+</span><span class=lnt> 17
+</span><span class=lnt> 18
+</span><span class=lnt> 19
+</span><span class=lnt> 20
+</span><span class=lnt> 21
+</span><span class=lnt> 22
+</span><span class=lnt> 23
+</span><span class=lnt> 24
+</span><span class=lnt> 25
+</span><span class=lnt> 26
+</span><span class=lnt> 27
+</span><span class=lnt> 28
+</span><span class=lnt> 29
+</span><span class=lnt> 30
+</span><span class=lnt> 31
+</span><span class=lnt> 32
+</span><span class=lnt> 33
+</span><span class=lnt> 34
+</span><span class=lnt> 35
+</span><span class=lnt> 36
+</span><span class=lnt> 37
+</span><span class=lnt> 38
+</span><span class=lnt> 39
+</span><span class=lnt> 40
+</span><span class=lnt> 41
+</span><span class=lnt> 42
+</span><span class=lnt> 43
+</span><span class=lnt> 44
+</span><span class=lnt> 45
+</span><span class=lnt> 46
+</span><span class=lnt> 47
+</span><span class=lnt> 48
+</span><span class=lnt> 49
+</span><span class=lnt> 50
+</span><span class=lnt> 51
+</span><span class=lnt> 52
+</span><span class=lnt> 53
+</span><span class=lnt> 54
+</span><span class=lnt> 55
+</span><span class=lnt> 56
+</span><span class=lnt> 57
+</span><span class=lnt> 58
+</span><span class=lnt> 59
+</span><span class=lnt> 60
+</span><span class=lnt> 61
+</span><span class=lnt> 62
+</span><span class=lnt> 63
+</span><span class=lnt> 64
+</span><span class=lnt> 65
+</span><span class=lnt> 66
+</span><span class=lnt> 67
+</span><span class=lnt> 68
+</span><span class=lnt> 69
+</span><span class=lnt> 70
+</span><span class=lnt> 71
+</span><span class=lnt> 72
+</span><span class=lnt> 73
+</span><span class=lnt> 74
+</span><span class=lnt> 75
+</span><span class=lnt> 76
+</span><span class=lnt> 77
+</span><span class=lnt> 78
+</span><span class=lnt> 79
+</span><span class=lnt> 80
+</span><span class=lnt> 81
+</span><span class=lnt> 82
+</span><span class=lnt> 83
+</span><span class=lnt> 84
+</span><span class=lnt> 85
+</span><span class=lnt> 86
+</span><span class=lnt> 87
+</span><span class=lnt> 88
+</span><span class=lnt> 89
+</span><span class=lnt> 90
+</span><span class=lnt> 91
+</span><span class=lnt> 92
+</span><span class=lnt> 93
+</span><span class=lnt> 94
+</span><span class=lnt> 95
+</span><span class=lnt> 96
+</span><span class=lnt> 97
+</span><span class=lnt> 98
+</span><span class=lnt> 99
+</span><span class=lnt>100
+</span><span class=lnt>101
+</span><span class=lnt>102
+</span><span class=lnt>103
+</span><span class=lnt>104
+</span><span class=lnt>105
+</span><span class=lnt>106
+</span><span class=lnt>107
+</span><span class=lnt>108
+</span><span class=lnt>109
+</span><span class=lnt>110
+</span><span class=lnt>111
+</span><span class=lnt>112
+</span><span class=lnt>113
+</span><span class=lnt>114
+</span><span class=lnt>115
+</span><span class=lnt>116
+</span><span class=lnt>117
+</span><span class=lnt>118
+</span><span class=lnt>119
+</span><span class=lnt>120
+</span><span class=lnt>121
+</span><span class=lnt>122
+</span><span class=lnt>123
+</span><span class=lnt>124
+</span><span class=lnt>125
+</span><span class=lnt>126
+</span><span class=lnt>127
+</span><span class=lnt>128
+</span><span class=lnt>129
+</span><span class=lnt>130
+</span><span class=lnt>131
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>version</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;3.8&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>monitoring</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>monitoring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>driver</span><span class=p>:</span><span class=w> </span><span class=l>bridge</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>traefik</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>external</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>traefik</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>prometheus_data</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>grafana_data</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>alertmanager_data</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>uptime-kuma_data</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>prometheus</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>prom/prometheus:v2.53.0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>prometheus</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./prometheus/rules:/etc/prometheus/rules:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>prometheus_data:/prometheus</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--config.file=/etc/prometheus/prometheus.yml&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--storage.tsdb.path=/prometheus&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--storage.tsdb.retention.time=30d&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--web.console.libraries=/usr/share/prometheus/console_libraries&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--web.console.templates=/usr/share/prometheus/consoles&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>monitoring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;9090:9090&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>node_exporter</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>prom/node-exporter:v1.8.0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>node_exporter</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/proc:/host/proc:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/sys:/host/sys:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/:/rootfs:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--path.procfs=/host/proc&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--path.sysfs=/host/sys&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--path.rootfs=/rootfs&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>monitoring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;9100:9100&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>cadvisor</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>gcr.io/cadvisor/cadvisor:v0.49.1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>cadvisor</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/:/rootfs:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/run:/var/run:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/sys:/sys:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/lib/docker/:/var/lib/docker:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/dev/disk/:/dev/disk:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>privileged</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>devices</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/dev/kmsg:/dev/kmsg</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>monitoring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;8080:8080&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>blackbox_exporter</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>prom/blackbox-exporter:v0.25.0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>blackbox_exporter</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>monitoring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;9115:9115&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>grafana</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>grafana/grafana:11.0.0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>grafana</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>GF_SECURITY_ADMIN_PASSWORD=admin</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>GF_INSTALL_PLUGINS=grafana-piechart-panel</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>GF_SERVER_ROOT_URL=https://grafana.你的域名.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>grafana_data:/var/lib/grafana</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./grafana/provisioning:/etc/grafana/provisioning:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./grafana/dashboards:/var/lib/grafana/dashboards:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>monitoring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>traefik</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.enable=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.grafana.rule=Host(`grafana.你的域名.com`)&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.services.grafana.loadbalancer.server.port=3000&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>alertmanager</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>prom/alertmanager:v0.27.0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>alertmanager</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>alertmanager_data:/alertmanager</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--config.file=/etc/alertmanager/alertmanager.yml&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s1>&#39;--storage.path=/alertmanager&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>monitoring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;9093:9093&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>uptime-kuma</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>louislam/uptime-kuma:1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>uptime-kuma</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>uptime-kuma_data:/app/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>monitoring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>traefik</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.enable=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.uptime-kuma.rule=Host(`status.你的域名.com`)&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.services.uptime-kuma.loadbalancer.server.port=3001&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><blockquote><p><strong>注意</strong>：<code>cadvisor</code> 需要 <code>privileged: true</code> 和 <code>/dev/kmsg</code> 才能正常采集容器指标。如果用 LXC 容器部署，需要确保 LXC 的 <code>features: keyctl=1,nesting=1</code>。</p></blockquote><h3 id=第二步prometheus-配置文件>第二步：Prometheus 配置文件</h3><p>创建 <code>prometheus/prometheus.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>global</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>scrape_interval</span><span class=p>:</span><span class=w> </span><span class=l>15s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>evaluation_interval</span><span class=p>:</span><span class=w> </span><span class=l>15s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>scrape_timeout</span><span class=p>:</span><span class=w> </span><span class=l>10s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>rule_files</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>/etc/prometheus/rules/*.yml</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>alerting</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>alertmanagers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>static_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=nt>targets</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s1>&#39;alertmanager:9093&#39;</span><span class=p>]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>scrape_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>job_name</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;prometheus&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>static_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>targets</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s1>&#39;localhost:9090&#39;</span><span class=p>]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>job_name</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;node_exporter&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>static_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>targets</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=s1>&#39;node_exporter:9100&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>job_name</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;cadvisor&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>static_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>targets</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=s1>&#39;cadvisor:8080&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>job_name</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;blackbox_http&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>metrics_path</span><span class=p>:</span><span class=w> </span><span class=l>/probe</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>params</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>module</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=l>http_2xx]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>static_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>targets</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>https://你的域名.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>https://grafana.你的域名.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>https://status.你的域名.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>relabel_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>source_labels</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=l>__address__]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>target_label</span><span class=p>:</span><span class=w> </span><span class=l>__param_target</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>source_labels</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=l>__param_target]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>target_label</span><span class=p>:</span><span class=w> </span><span class=l>instance</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>target_label</span><span class=p>:</span><span class=w> </span><span class=l>__address__</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>replacement</span><span class=p>:</span><span class=w> </span><span class=l>blackbox_exporter:9115</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=第三步告警规则>第三步：告警规则</h3><p>创建 <code>prometheus/rules/homelab.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span><span class=lnt>54
+</span><span class=lnt>55
+</span><span class=lnt>56
+</span><span class=lnt>57
+</span><span class=lnt>58
+</span><span class=lnt>59
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>groups</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>homelab</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>rules</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>alert</span><span class=p>:</span><span class=w> </span><span class=l>磁盘即将用满</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>expr</span><span class=p>:</span><span class=w> </span><span class=l>(1 - node_filesystem_avail_bytes{mountpoint=&#34;/&#34;}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>              </span><span class=l>/ node_filesystem_size_bytes{mountpoint=&#34;/&#34;}) * 100 &gt; 85</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>for</span><span class=p>:</span><span class=w> </span><span class=l>5m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>severity</span><span class=p>:</span><span class=w> </span><span class=l>warning</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>summary</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;宿主机磁盘使用率超过 85%&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>description</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;当前使用率 {{ $value | humanizePercentage }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>alert</span><span class=p>:</span><span class=w> </span><span class=l>宿主机宕机</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>expr</span><span class=p>:</span><span class=w> </span><span class=l>up{job=&#34;node_exporter&#34;} == 0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>for</span><span class=p>:</span><span class=w> </span><span class=l>1m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>severity</span><span class=p>:</span><span class=w> </span><span class=l>critical</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>summary</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Node Exporter 无响应&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>description</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;宿主机可能已宕机或网络不可达&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>alert</span><span class=p>:</span><span class=w> </span><span class=l>服务不可达</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>expr</span><span class=p>:</span><span class=w> </span><span class=l>probe_success{job=&#34;blackbox_http&#34;} == 0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>for</span><span class=p>:</span><span class=w> </span><span class=l>30s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>severity</span><span class=p>:</span><span class=w> </span><span class=l>critical</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>summary</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;服务 {{ $labels.instance }} 不可访问&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>description</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;HTTP 探测失败，请检查服务状态&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>alert</span><span class=p>:</span><span class=w> </span><span class=l>容器异常重启</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>expr</span><span class=p>:</span><span class=w> </span><span class=l>rate(container_restarts_total[5m]) &gt; 0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>for</span><span class=p>:</span><span class=w> </span><span class=l>2m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>severity</span><span class=p>:</span><span class=w> </span><span class=l>warning</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>summary</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;容器频繁重启&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>description</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;容器 {{ $labels.name }} 在 5 分钟内重启了多次&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>alert</span><span class=p>:</span><span class=w> </span><span class=l>CPU 负载过高</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>expr</span><span class=p>:</span><span class=w> </span><span class=l>(100 - (avg by(instance) (rate(node_cpu_seconds_total</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>              </span>{<span class=l>mode=&#34;idle&#34;}[5m])) * 100)) &gt; 90</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>for</span><span class=p>:</span><span class=w> </span><span class=l>10m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>severity</span><span class=p>:</span><span class=w> </span><span class=l>warning</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>summary</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;CPU 使用率超过 90%&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>description</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;当前 CPU 使用率 {{ $value | humanizePercentage }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>alert</span><span class=p>:</span><span class=w> </span><span class=l>内存不足</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>expr</span><span class=p>:</span><span class=w> </span><span class=l>(1 - node_memory_MemAvailable_bytes</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>              </span><span class=l>/ node_memory_MemTotal_bytes) * 100 &gt; 90</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>for</span><span class=p>:</span><span class=w> </span><span class=l>5m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>severity</span><span class=p>:</span><span class=w> </span><span class=l>warning</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>summary</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;内存使用率超过 90%&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>description</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;当前内存使用率 {{ $value | humanizePercentage }}&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=第四步alertmanager-配置与-telegram-通知>第四步：Alertmanager 配置与 Telegram 通知</h3><p>创建 <code>alertmanager/alertmanager.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>global</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>resolve_timeout</span><span class=p>:</span><span class=w> </span><span class=l>5m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>route</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>group_by</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s1>&#39;alertname&#39;</span><span class=p>,</span><span class=w> </span><span class=s1>&#39;severity&#39;</span><span class=p>]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>group_wait</span><span class=p>:</span><span class=w> </span><span class=l>30s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>group_interval</span><span class=p>:</span><span class=w> </span><span class=l>5m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>repeat_interval</span><span class=p>:</span><span class=w> </span><span class=l>4h</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>receiver</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;telegram&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>receivers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;telegram&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>telegram_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>bot_token</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;你的BOT_TOKEN&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>chat_id</span><span class=p>:</span><span class=w> </span><span class=l>你的CHAT_ID</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>message</span><span class=p>:</span><span class=w> </span><span class=p>|</span><span class=sd>
+</span></span></span><span class=line><span class=cl><span class=sd>          {{ range .Alerts }}
+</span></span></span><span class=line><span class=cl><span class=sd>          🔴 *{{ .Labels.alertname }}*
+</span></span></span><span class=line><span class=cl><span class=sd>          {{ .Annotations.description }}
+</span></span></span><span class=line><span class=cl><span class=sd>          Severity: `{{ .Labels.severity }}`
+</span></span></span><span class=line><span class=cl><span class=sd>          Started: {{ .StartsAt.Format &#34;2006-01-02 15:04:05&#34; }}
+</span></span></span><span class=line><span class=cl><span class=sd>          {{ end }}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>parse_mode</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;Markdown&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>send_resolved</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><blockquote><p><strong>踩坑记录</strong>：Telegram Bot Token 是敏感信息。建议用环境变量替代硬编码：
+<code>bot_token: '{{ external.url "https://vault.你的域名.com/telegram-token" }}'</code></p><p>或者用 Docker secrets 注入。千万<strong>不要</strong>把 Bot Token 提交到 Git 仓库。</p></blockquote><h3 id=第五步blackbox-exporter-配置>第五步：Blackbox Exporter 配置</h3><p>创建 <code>blackbox/blackbox.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>modules</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>http_2xx</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>prober</span><span class=p>:</span><span class=w> </span><span class=l>http</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>timeout</span><span class=p>:</span><span class=w> </span><span class=l>5s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>http</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>valid_http_versions</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s2>&#34;HTTP/1.1&#34;</span><span class=p>,</span><span class=w> </span><span class=s2>&#34;HTTP/2.0&#34;</span><span class=p>]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>valid_status_codes</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=m>200</span><span class=p>,</span><span class=w> </span><span class=m>301</span><span class=p>,</span><span class=w> </span><span class=m>302</span><span class=p>]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>follow_redirects</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>preferred_ip_protocol</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;ip4&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>tcp_connect</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>prober</span><span class=p>:</span><span class=w> </span><span class=l>tcp</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>timeout</span><span class=p>:</span><span class=w> </span><span class=l>5s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>icmp</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>prober</span><span class=p>:</span><span class=w> </span><span class=l>icmp</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>timeout</span><span class=p>:</span><span class=w> </span><span class=l>5s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>icmp</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>preferred_ip_protocol</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;ip4&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=第六步grafana-自动配置>第六步：Grafana 自动配置</h3><p>创建 <code>grafana/provisioning/datasources/datasource.yml</code> 实现数据源自动注册：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>datasources</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Prometheus</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>prometheus</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>access</span><span class=p>:</span><span class=w> </span><span class=l>proxy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>url</span><span class=p>:</span><span class=w> </span><span class=l>http://prometheus:9090</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>isDefault</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>然后安装社区流行的仪表盘。推荐以下几个 ID（在 Grafana Web UI 中通过 Import 导入）：</p><div class=table-wrapper><table><thead><tr><th>仪表盘</th><th>ID</th><th>描述</th></tr></thead><tbody><tr><td>Node Exporter Full</td><td>1860</td><td>最全面的宿主机监控面板</td></tr><tr><td>Docker Containers</td><td>179</td><td>cAdvisor 容器监控面板</td></tr><tr><td>Prometheus 2.0 Stats</td><td>3662</td><td>Prometheus 自身健康状态</td></tr></tbody></table></div><h3 id=一键启动>一键启动</h3><p>配置完成后，启动所有服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> ~/monitoring
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span></code></pre></td></tr></table></div></div><p>检查服务状态：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose ps
+</span></span><span class=line><span class=cl>docker compose logs -f
+</span></span></code></pre></td></tr></table></div></div><p>确认 Prometheus Target 全部 UP：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -s http://localhost:9090/api/v1/targets <span class=p>|</span> jq <span class=s1>&#39;.data.activeTargets[] | {job: .labels.job, health: .health}&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=踩坑与优化>踩坑与优化</h2><h3 id=1-存储-retention-策略>1. 存储 Retention 策略</h3><p>Prometheus 默认只保留 15 天数据。在 Homelab 场景，我建议根据磁盘空间调整：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 查看当前 Prometheus 数据占用</span>
+</span></span><span class=line><span class=cl>du -sh /var/lib/docker/volumes/monitoring_prometheus_data/_data
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 如果想保留更长时间，修改 retention 参数</span>
+</span></span><span class=line><span class=cl><span class=c1># --storage.tsdb.retention.time=60d</span>
+</span></span></code></pre></td></tr></table></div></div><p>我跑了 6 个月实验后的结论：<strong>对于 Homelab 场景，30 天 retention + 15s scrape interval</strong> 是存储和查询速度的最佳平衡点。更长的保留期会让 Grafana 查询变慢，而且旧数据的实用价值急剧下降。</p><h3 id=2-node-exporter-在-pve-lxc-中的注意事项>2. Node Exporter 在 PVE LXC 中的注意事项</h3><p>如果你把 Node Exporter 直接跑在 PVE 宿主上（而不是 Docker 里），要注意：</p><ul><li>在 LXC 容器中，Node Exporter 看到的 <code>/proc</code> 和 <code>/sys</code> 是容器 namespace 的，<strong>不反映宿主机真实指标</strong></li><li>如果需要在 LXC 中获取宿主机级指标，要么把 Node Exporter 直接安装在 PVE 宿主机上，要么用 PVE 的 <code>pve-node-exporter</code>（通过 <code>apt install prometheus-pve-exporter</code>）</li></ul><p>在 PVE 宿主机上直接运行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># PVE 宿主机安装 Node Exporter</span>
+</span></span><span class=line><span class=cl>apt update <span class=o>&amp;&amp;</span> apt install -y prometheus-node-exporter
+</span></span><span class=line><span class=cl>systemctl <span class=nb>enable</span> --now prometheus-node-exporter
+</span></span></code></pre></td></tr></table></div></div><p>然后在 prometheus.yml 的静态目标中直接添加 PVE 宿主机的 IP：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=w>  </span>- <span class=nt>job_name</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;pve_host&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>static_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>targets</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s1>&#39;192.168.1.100:9100&#39;</span><span class=p>]</span><span class=w>  </span><span class=c># PVE 宿主 IP</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=3-grafana-内存占用过高>3. Grafana 内存占用过高</h3><p>Grafana 默认配置下可能占用 300-500MB 内存。对于 4GB 的 LXC 容器有些吃力。优化方案：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=c># 在 docker-compose 的 grafana environment 中添加</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>GF_PANELS_DISABLE_SANITIZE_HTML=true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c># 限制 Grafana 内存</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>GF_SERVER_ENABLE_GZIP=true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c># 关闭不必要的功能</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>GF_EXPLORE_ENABLED=false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>GF_ALERTING_ENABLED=false </span><span class=w> </span><span class=c># 由 Prometheus Alertmanager 处理告警</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=4-uptime-kuma-与-prometheus-数据源>4. Uptime Kuma 与 Prometheus 数据源</h3><p>很多人会问：Uptime Kuma 和 Prometheus Blackbox Exporter 重复了吗？我的观点是<strong>互补</strong>：</p><ul><li><strong>Uptime Kuma</strong>：面向人的监控，友好的 Web 界面、状态页、可视化监控历史饼图，适合分享给家人展示网络状况</li><li><strong>Blackbox Exporter</strong>：面向机器的监控，数据进 Prometheus，与已有告警体系集成</li></ul><p>两者并存互不冲突。Uptime Kuma 也支持反向代理暴露为 <code>status.你的域名.com</code>，做成公开状态页。</p><h2 id=集成-traefik>集成 Traefik</h2><p>如果你之前跟着本站的 <a class=link href=/post/traefik-reverse-proxy-homelab/>Traefik 部署指南</a> 搭建了反向代理，集成非常简单。</p><p>确保 Docker Compose 中 Grafana 和 Uptime Kuma 都连接了 <code>traefik</code> 网络，并添加了对应的 labels。在 Traefik 的 <code>dynamic.yml</code>（或 Provider 配置）中，不需要额外配置——Traefik 会自动发现 Docker 容器的 label。</p><p>然后就可以通过以下域名访问：</p><div class=table-wrapper><table><thead><tr><th>服务</th><th>地址</th></tr></thead><tbody><tr><td>Grafana 面板</td><td><code>https://grafana.你的域名.com</code></td></tr><tr><td>Uptime Kuma 状态页</td><td><code>https://status.你的域名.com</code></td></tr><tr><td>Prometheus Web UI</td><td><code>https://prometheus.你的域名.com</code>（需额外配置）</td></tr><tr><td>Alertmanager UI</td><td><code>https://alertmanager.你的域名.com</code>（需额外配置）</td></tr></tbody></table></div><blockquote><p><strong>安全建议</strong>：Prometheus 和 Alertmanager 的 Web UI <strong>不建议</strong>暴露到公网。它们没有认证功能，暴露后任何人都可以查询你的所有指标。要么通过 Traefik Basic Auth 中间件保护，要么只在内网访问。</p></blockquote><p>在 Traefik 中添加 Basic Auth 中间件的例子：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=c># Traefik dynamic config 或 Docker label</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=s2>&#34;traefik.http.middlewares.prometheus-auth.basicauth.users=admin:$$2y$$10$$...&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=s2>&#34;traefik.http.routers.prometheus.middlewares=prometheus-auth&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=告警效果>告警效果</h2><p>告警配置完成后，当发生以下情况，Telegram 会在 1-5 分钟内收到通知：</p><ul><li>磁盘使用率超过 85%</li><li>任意监控服务无法访问（HTTP 50x / 超时）</li><li>Docker 容器异常重启</li><li>宿主机 CPU 或内存负载过高</li><li>证书即将过期（可结合 Blackbox Exporter 的 SSL 证书过期探测）</li></ul><p>Telegram 通知示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>🔴 磁盘即将用满
+</span></span><span class=line><span class=cl>宿主机磁盘使用率超过 85%
+</span></span><span class=line><span class=cl>当前使用率 91.2%
+</span></span><span class=line><span class=cl>Severity: warning
+</span></span><span class=line><span class=cl>Started: 2026-05-06 08:45:00
+</span></span></code></pre></td></tr></table></div></div><h2 id=总结>总结</h2><p>这套监控栈跑了大半年，帮我抓到了不少问题：</p><ol><li>Docker 日志未轮转导致 <code>/var/lib/docker</code> 撑爆宿主机 root —— 告警在磁盘 85% 时触发，及时清理</li><li>Jellyfin 硬件转码异常导致容器疯狂重启 —— Alertmanager 检测到容器重启频率异常</li><li>Traefik 证书有一次没自动续期 —— Blackbox Exporter 探测到 HTTPS 证书错误</li></ol><p>有了监控，才真正感觉到 Homelab 是<strong>可控的</strong>。从盲人摸象到一目了然，这套组合是每个认真玩 Homelab 的人必备的基础设施。</p><p>对应的 Docker Compose 配置文件和告警规则模板已整理好，可以直接 clone 使用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>git clone https://github.com/你的用户名/homelab-monitoring.git
+</span></span><span class=line><span class=cl><span class=nb>cd</span> homelab-monitoring
+</span></span><span class=line><span class=cl><span class=c1># 编辑 alertmanager/alertmanager.yml 填入 Telegram Token</span>
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span></code></pre></td></tr></table></div></div><p>下一步可以探索：</p><ul><li><strong>Loki + Promtail</strong>：Docker 日志聚合，与 Grafana 无缝集成</li><li><strong>PVE Exporter</strong>：采集 PVE 集群指标（虚拟机状态、存储池使用率、Ceph 状态）</li><li><strong>SNMP Exporter</strong>：监控交换机、UPS 等网络设备</li><li><strong>Grafana OnCall</strong>：更完善的告警排班和升级策略</li></ul></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

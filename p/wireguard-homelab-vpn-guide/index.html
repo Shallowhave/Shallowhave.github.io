@@ -1,0 +1,406 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="从零搭建 WireGuard VPN 实现 Homelab 远程安全访问。覆盖原生部署、Docker (wg-easy) 部署、多客户端管理、Split Tunneling、Site-to-Site 组网及踩坑记录。"><title>WireGuard VPN 完全指南：为你的 Homelab 构建安全高效的远程访问通道</title><link rel=canonical href=https://shallowhave.github.io/p/wireguard-homelab-vpn-guide/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="WireGuard VPN 完全指南：为你的 Homelab 构建安全高效的远程访问通道"><meta property='og:description' content="从零搭建 WireGuard VPN 实现 Homelab 远程安全访问。覆盖原生部署、Docker (wg-easy) 部署、多客户端管理、Split Tunneling、Site-to-Site 组网及踩坑记录。"><meta property='og:url' content='https://shallowhave.github.io/p/wireguard-homelab-vpn-guide/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-10T09:00:00+08:00'><meta property='article:modified_time' content='2026-05-10T09:00:00+08:00'><meta name=twitter:title content="WireGuard VPN 完全指南：为你的 Homelab 构建安全高效的远程访问通道"><meta name=twitter:description content="从零搭建 WireGuard VPN 实现 Homelab 远程安全访问。覆盖原生部署、Docker (wg-easy) 部署、多客户端管理、Split Tunneling、Site-to-Site 组网及踩坑记录。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-为什么选-wireguard>1. 为什么选 WireGuard？</a></li><li><a href=#2-架构概览>2. 架构概览</a></li><li><a href=#3-方案一原生部署debianubuntu>3. 方案一：原生部署（Debian/Ubuntu）</a><ol><li><a href=#31-安装-wireguard>3.1 安装 WireGuard</a></li><li><a href=#32-生成密钥对>3.2 生成密钥对</a></li><li><a href=#33-服务端配置-etcwireguardwg0conf>3.3 服务端配置 <code>/etc/wireguard/wg0.conf</code></a></li><li><a href=#34-启动服务>3.4 启动服务</a></li></ol></li><li><a href=#4-方案二docker-部署-wg-easy推荐>4. 方案二：Docker 部署 wg-easy（推荐）</a><ol><li><a href=#41-docker-composeyml>4.1 docker-compose.yml</a></li><li><a href=#42-启动与使用>4.2 启动与使用</a></li></ol></li><li><a href=#5-客户端配置>5. 客户端配置</a><ol><li><a href=#51-手机iosandroid>5.1 手机（iOS/Android）</a></li><li><a href=#52-桌面端windowsmacoslinux>5.2 桌面端（Windows/macOS/Linux）</a></li></ol></li><li><a href=#6-高级配置>6. 高级配置</a><ol><li><a href=#61-split-tunneling只让内网流量走-vpn>6.1 Split Tunneling：只让内网流量走 VPN</a></li><li><a href=#62-dns-泄漏防护>6.2 DNS 泄漏防护</a></li><li><a href=#63-site-to-site连接两个局域网>6.3 Site-to-Site：连接两个局域网</a></li><li><a href=#64-persistentkeepalive-的作用>6.4 PersistentKeepalive 的作用</a></li></ol></li><li><a href=#7-踩坑记录>7. 踩坑记录</a><ol><li><a href=#-坑-1能连上但-ping-不通内网>❌ 坑 1：能连上但 ping 不通内网</a></li><li><a href=#-坑-2docker-部署后宿主机自身无法访问-vpn-内网>❌ 坑 2：Docker 部署后宿主机自身无法访问 VPN 内网</a></li><li><a href=#-坑-3国内部分运营商-udp-qos-严重限速>❌ 坑 3：国内部分运营商 UDP QoS 严重限速</a></li><li><a href=#-坑-4ddns-域名解析-ip-更新延迟>❌ 坑 4：DDNS 域名解析 IP 更新延迟</a></li></ol></li><li><a href=#8-与-tailscale--zerotier-的对比>8. 与 Tailscale / ZeroTier 的对比</a></li><li><a href=#9-安全加固清单>9. 安全加固清单</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/wireguard-homelab-vpn-guide/>WireGuard VPN 完全指南：为你的 Homelab 构建安全高效的远程访问通道</a></h2><h3 class=article-subtitle>从零搭建 WireGuard VPN 实现 Homelab 远程安全访问。覆盖原生部署、Docker (wg-easy) 部署、多客户端管理、Split Tunneling、Site-to-Site 组网及踩坑记录。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 10, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 8 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>玩 Homelab 的人迟早会面临一个问题：<strong>人在外面，怎么安全地访问家里的服务？</strong></p><p>把每个服务都通过端口映射暴露到公网？不安全。给每个服务配 SSL + 认证？麻烦。用 TeamViewer/AnyDesk 远程桌面？治标不治本。</p><p><strong>正确姿势：打一条 VPN 隧道回家。</strong></p><p>本文将从零开始，带你搭建 WireGuard VPN，实现一个端口（UDP 51820）打通整个家庭内网。涵盖：</p><ul><li><strong>原生安装</strong>（适合极致性能党）</li><li><strong>Docker 部署 wg-easy</strong>（适合追求开箱即用）</li><li><strong>多客户端管理、Split Tunneling、Site-to-Site 组网</strong></li><li><strong>常见踩坑与排查</strong></li></ul><hr><h2 id=1-为什么选-wireguard>1. 为什么选 WireGuard？</h2><p>WireGuard 于 2020 年并入 Linux 5.6 内核主线，代码量仅约 4,000 行（OpenVPN 约 100,000 行，IPSec 约 400,000 行）。短小精悍意味着<strong>攻击面小、审计容易</strong>。</p><div class=table-wrapper><table><thead><tr><th>特性</th><th>WireGuard</th><th>OpenVPN</th><th>IPSec/IKEv2</th></tr></thead><tbody><tr><td><strong>代码量</strong></td><td>~4,000 行</td><td>~100,000 行</td><td>~400,000 行</td></tr><tr><td><strong>内核集成</strong></td><td>✅ Linux 5.6+ 原生</td><td>❌ tun/tap 用户态</td><td>✅ XFRM</td></tr><tr><td><strong>加密套件</strong></td><td>ChaCha20 + Poly1305</td><td>可选（OpenSSL）</td><td>可选</td></tr><tr><td><strong>密钥交换</strong></td><td>Curve25519 (Noise)</td><td>X.509 证书</td><td>IKEv2</td></tr><tr><td><strong>配置复杂度</strong></td><td>🏆 极简（一个 ini 文件）</td><td>❌ 复杂（证书体系）</td><td>❌ 复杂</td></tr><tr><td><strong>漫游支持</strong></td><td>✅ 原生（无状态 UDP）</td><td>⚠️ 需重连</td><td>⚠️ 需重连</td></tr><tr><td><strong>延迟增量</strong></td><td>~0.1ms</td><td>~5-10ms</td><td>~2-5ms</td></tr><tr><td><strong>吞吐量</strong></td><td>🏆 接近线速</td><td>⚠️ 用户态瓶颈</td><td>✅ 高</td></tr></tbody></table></div><p><strong>结论：对于 Homelab 远程访问场景，WireGuard 是压倒性的首选。</strong></p><hr><h2 id=2-架构概览>2. 架构概览</h2><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>📱 手机/笔记本 (10.6.0.x)
+</span></span><span class=line><span class=cl>   │  WireGuard 加密隧道
+</span></span><span class=line><span class=cl>   │  UDP 51820
+</span></span><span class=line><span class=cl>   ▼
+</span></span><span class=line><span class=cl>🌐 公网 → your-ddns.com:51820
+</span></span><span class=line><span class=cl>   │  路由器端口转发
+</span></span><span class=line><span class=cl>   ▼
+</span></span><span class=line><span class=cl>🖥️ WG Server (内网 192.168.1.x, WG IP 10.6.0.1)
+</span></span><span class=line><span class=cl>   │  解密 → 转发到内网
+</span></span><span class=line><span class=cl>   ▼
+</span></span><span class=line><span class=cl>🏠 内网服务: 192.168.1.0/24 (NAS, PVE, HA, ... )
+</span></span></code></pre></td></tr></table></div></div><p>核心原理：</p><ol><li>WireGuard 使用 <strong>Cryptokey Routing</strong>：每个 peer 的公钥对应一组允许的 IP 范围</li><li>服务端开启 IP 转发 + NAT，将 VPN 流量桥接到物理内网</li><li>客户端只需配置 peer 的公钥、endpoint 和 AllowedIPs</li></ol><hr><h2 id=3-方案一原生部署debianubuntu>3. 方案一：原生部署（Debian/Ubuntu）</h2><p>适用场景：你对性能敏感，愿意手动管理配置。</p><h3 id=31-安装-wireguard>3.1 安装 WireGuard</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 更新系统并安装</span>
+</span></span><span class=line><span class=cl>sudo apt update <span class=o>&amp;&amp;</span> sudo apt upgrade -y
+</span></span><span class=line><span class=cl>sudo apt install wireguard -y
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 确认内核模块加载</span>
+</span></span><span class=line><span class=cl>sudo modprobe wireguard
+</span></span><span class=line><span class=cl>lsmod <span class=p>|</span> grep wireguard
+</span></span><span class=line><span class=cl><span class=c1># 输出: wireguard  xxxxx  0</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 开启 IP 转发（关键！否则 VPN 流量无法到达内网）</span>
+</span></span><span class=line><span class=cl><span class=nb>echo</span> <span class=s2>&#34;net.ipv4.ip_forward = 1&#34;</span> <span class=p>|</span> sudo tee -a /etc/sysctl.conf
+</span></span><span class=line><span class=cl>sudo sysctl -p
+</span></span></code></pre></td></tr></table></div></div><h3 id=32-生成密钥对>3.2 生成密钥对</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 创建密钥目录</span>
+</span></span><span class=line><span class=cl>sudo mkdir -p /etc/wireguard/keys <span class=o>&amp;&amp;</span> sudo chmod <span class=m>700</span> /etc/wireguard/keys
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 服务端密钥</span>
+</span></span><span class=line><span class=cl>wg genkey <span class=p>|</span> sudo tee /etc/wireguard/keys/server_private.key <span class=p>|</span> wg pubkey <span class=p>|</span> sudo tee /etc/wireguard/keys/server_public.key
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 客户端密钥（每新增一个客户端就生成一对）</span>
+</span></span><span class=line><span class=cl>wg genkey <span class=p>|</span> sudo tee /etc/wireguard/keys/phone_private.key <span class=p>|</span> wg pubkey <span class=p>|</span> sudo tee /etc/wireguard/keys/phone_public.key
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 保护私钥</span>
+</span></span><span class=line><span class=cl>sudo chmod <span class=m>600</span> /etc/wireguard/keys/*_private.key
+</span></span></code></pre></td></tr></table></div></div><h3 id=33-服务端配置-etcwireguardwg0conf>3.3 服务端配置 <code>/etc/wireguard/wg0.conf</code></h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=k>[Interface]</span>
+</span></span><span class=line><span class=cl><span class=na>Address</span> <span class=o>=</span> <span class=s>10.6.0.1/24</span>
+</span></span><span class=line><span class=cl><span class=na>ListenPort</span> <span class=o>=</span> <span class=s>51820</span>
+</span></span><span class=line><span class=cl><span class=na>PrivateKey</span> <span class=o>=</span> <span class=s>&lt;填入 server_private.key 的内容&gt;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># NAT 规则 — 将 wg0 流量转发到物理网卡</span>
+</span></span><span class=line><span class=cl><span class=c1># 注意：eth0 改为你的实际公网/内网出口网卡名</span>
+</span></span><span class=line><span class=cl><span class=na>PostUp</span>   <span class=o>=</span> <span class=s>iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE</span>
+</span></span><span class=line><span class=cl><span class=na>PostDown</span> <span class=o>=</span> <span class=s>iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># DNS（可选，推送给客户端）</span>
+</span></span><span class=line><span class=cl><span class=na>DNS</span> <span class=o>=</span> <span class=s>192.168.1.1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 客户端 1：手机</span>
+</span></span><span class=line><span class=cl><span class=k>[Peer]</span>
+</span></span><span class=line><span class=cl><span class=na>PublicKey</span> <span class=o>=</span> <span class=s>&lt;填入 phone_public.key 的内容&gt;</span>
+</span></span><span class=line><span class=cl><span class=na>AllowedIPs</span> <span class=o>=</span> <span class=s>10.6.0.2/32</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 客户端 2：笔记本</span>
+</span></span><span class=line><span class=cl><span class=k>[Peer]</span>
+</span></span><span class=line><span class=cl><span class=na>PublicKey</span> <span class=o>=</span> <span class=s>&lt;填入 laptop_public.key 的内容&gt;</span>
+</span></span><span class=line><span class=cl><span class=na>AllowedIPs</span> <span class=o>=</span> <span class=s>10.6.0.3/32</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p><strong>关键说明</strong>：<code>AllowedIPs</code> 决定了该 peer 能路由哪些 IP。设为 <code>10.6.0.x/32</code> 表示该客户端只能使用这个 VPN IP。如果要让该 peer 访问内网（192.168.1.0/24），客户端侧设置即可（见下文）。</p></blockquote><h3 id=34-启动服务>3.4 启动服务</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 设置开机自启</span>
+</span></span><span class=line><span class=cl>sudo systemctl <span class=nb>enable</span> wg-quick@wg0
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 启动</span>
+</span></span><span class=line><span class=cl>sudo systemctl start wg-quick@wg0
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看状态</span>
+</span></span><span class=line><span class=cl>sudo wg show
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=4-方案二docker-部署-wg-easy推荐>4. 方案二：Docker 部署 wg-easy（推荐）</h2><p><a class=link href=https://github.com/wg-easy/wg-easy target=_blank rel=noopener>wg-easy</a> 提供了 Web UI，支持扫码添加客户端、一键生成配置，极大降低管理成本。</p><h3 id=41-docker-composeyml>4.1 docker-compose.yml</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;3.8&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>wg-easy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>ghcr.io/wg-easy/wg-easy:15</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>wg-easy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>cap_add</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>NET_ADMIN</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>SYS_MODULE</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>sysctls</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>net.ipv4.ip_forward=1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>net.ipv4.conf.all.src_valid_mark=1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># 必填：公网 IP 或 DDNS 域名</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>WG_HOST=your-ddns.duckdns.org</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># Web UI 密码（bcrypt hash）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>PASSWORD_HASH=$$2a$$12$$...your_bcrypt_hash...</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># 可选配置</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>WG_PORT=51820</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>WG_DEFAULT_ADDRESS=10.6.0.x</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>WG_DEFAULT_DNS=192.168.1.1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>WG_ALLOWED_IPS=192.168.1.0/24,10.6.0.0/24</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>WG_PERSISTENT_KEEPALIVE=25</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># 语言</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>LANG=zh</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./wg-easy:/etc/wireguard</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;51820:51820/udp&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;51821:51821/tcp&#34;</span><span class=w>   </span><span class=c># Web UI</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><blockquote><p><strong>生成 bcrypt 密码哈希</strong>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run --rm ghcr.io/wg-easy/wg-easy:15 wgpw <span class=s2>&#34;你的密码&#34;</span>
+</span></span></code></pre></td></tr></table></div></div></blockquote><h3 id=42-启动与使用>4.2 启动与使用</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看日志确认启动</span>
+</span></span><span class=line><span class=cl>docker compose logs -f
+</span></span></code></pre></td></tr></table></div></div><p>然后访问 <code>http://&lt;服务器IP>:51821</code>，登录后即可：</p><ul><li>点击「新建客户端」生成配置</li><li>扫码或下载 <code>.conf</code> 文件导入手机/电脑</li><li>在 UI 中启用/禁用客户端</li></ul><p><strong>优势</strong>：无需手动编辑 <code>wg0.conf</code>、无需执行 <code>wg</code> 命令、客户端增减在 Web UI 一点即可。</p><hr><h2 id=5-客户端配置>5. 客户端配置</h2><h3 id=51-手机iosandroid>5.1 手机（iOS/Android）</h3><ol><li>安装 WireGuard App</li><li>扫描 wg-easy 生成的二维码或导入 <code>.conf</code></li><li>点击连接</li></ol><p>典型客户端配置文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=k>[Interface]</span>
+</span></span><span class=line><span class=cl><span class=na>PrivateKey</span> <span class=o>=</span> <span class=s>&lt;客户端私钥&gt;</span>
+</span></span><span class=line><span class=cl><span class=na>Address</span> <span class=o>=</span> <span class=s>10.6.0.2/24</span>
+</span></span><span class=line><span class=cl><span class=na>DNS</span> <span class=o>=</span> <span class=s>192.168.1.1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[Peer]</span>
+</span></span><span class=line><span class=cl><span class=na>PublicKey</span> <span class=o>=</span> <span class=s>&lt;服务端公钥&gt;</span>
+</span></span><span class=line><span class=cl><span class=na>PresharedKey</span> <span class=o>=</span> <span class=s>&lt;预共享密钥，可选&gt;</span>
+</span></span><span class=line><span class=cl><span class=na>Endpoint</span> <span class=o>=</span> <span class=s>your-ddns.duckdns.org:51820</span>
+</span></span><span class=line><span class=cl><span class=na>AllowedIPs</span> <span class=o>=</span> <span class=s>192.168.1.0/24, 10.6.0.0/24</span>
+</span></span><span class=line><span class=cl><span class=na>PersistentKeepalive</span> <span class=o>=</span> <span class=s>25</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p><strong><code>AllowedIPs</code> 的值决定了哪些流量走隧道</strong>：</p><ul><li><code>192.168.1.0/24, 10.6.0.0/24</code> → 仅内网流量走 VPN（<strong>Split Tunneling</strong>，推荐）</li><li><code>0.0.0.0/0</code> → 全部流量走 VPN（类似全局代理）</li></ul></blockquote><h3 id=52-桌面端windowsmacoslinux>5.2 桌面端（Windows/macOS/Linux）</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># Linux Desktop</span>
+</span></span><span class=line><span class=cl>sudo apt install wireguard -y
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 导入配置</span>
+</span></span><span class=line><span class=cl>sudo cp phone.conf /etc/wireguard/wg0.conf
+</span></span><span class=line><span class=cl>sudo systemctl start wg-quick@wg0
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看连接状态</span>
+</span></span><span class=line><span class=cl>sudo wg show
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=6-高级配置>6. 高级配置</h2><h3 id=61-split-tunneling只让内网流量走-vpn>6.1 Split Tunneling：只让内网流量走 VPN</h3><p>默认如果客户端 <code>AllowedIPs = 0.0.0.0/0</code>，所有流量（包含访问百度、Google）都会经过家里的网络。大多数场景只需要访问内网服务。</p><p><strong>正确做法</strong>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=c1># 客户端配置只路由内网网段</span>
+</span></span><span class=line><span class=cl><span class=na>AllowedIPs</span> <span class=o>=</span> <span class=s>192.168.1.0/24, 10.6.0.0/24</span>
+</span></span></code></pre></td></tr></table></div></div><p>这样你访问公网走本地 WiFi/5G，访问内网（如 NAS 的 <code>192.168.1.100:5000</code>）走 WireGuard 隧道。<strong>速度更快、延迟更低、不占用家庭宽带上行</strong>。</p><h3 id=62-dns-泄漏防护>6.2 DNS 泄漏防护</h3><p>如果你需要让 DNS 查询也走隧道（避免暴露浏览记录），在客户端配置中指定 DNS：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=k>[Interface]</span>
+</span></span><span class=line><span class=cl><span class=na>DNS</span> <span class=o>=</span> <span class=s>192.168.1.1   # 使用家里的 DNS</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 或者用公共 DNS over WG</span>
+</span></span><span class=line><span class=cl><span class=c1># DNS = 1.1.1.1, 8.8.8.8</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=63-site-to-site连接两个局域网>6.3 Site-to-Site：连接两个局域网</h3><p>假设你有一台云服务器（阿里云/腾讯云），想让它能访问家里的内网设备。</p><p><strong>云的 WG 配置</strong>（作为客户端加入你家网络）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=k>[Interface]</span>
+</span></span><span class=line><span class=cl><span class=na>Address</span> <span class=o>=</span> <span class=s>10.6.0.10/24</span>
+</span></span><span class=line><span class=cl><span class=na>PrivateKey</span> <span class=o>=</span> <span class=s>&lt;云主机私钥&gt;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[Peer]</span>
+</span></span><span class=line><span class=cl><span class=na>PublicKey</span> <span class=o>=</span> <span class=s>&lt;家里的服务端公钥&gt;</span>
+</span></span><span class=line><span class=cl><span class=na>Endpoint</span> <span class=o>=</span> <span class=s>home.your-ddns.com:51820</span>
+</span></span><span class=line><span class=cl><span class=na>AllowedIPs</span> <span class=o>=</span> <span class=s>192.168.1.0/24</span>
+</span></span><span class=line><span class=cl><span class=na>PersistentKeepalive</span> <span class=o>=</span> <span class=s>25</span>
+</span></span></code></pre></td></tr></table></div></div><p>云主机连上后，就能直接用 <code>ssh user@192.168.1.100</code> 访问家里的机器了。</p><h3 id=64-persistentkeepalive-的作用>6.4 PersistentKeepalive 的作用</h3><p><code>PersistentKeepalive = 25</code> 表示每 25 秒发一个空包维持 NAT 会话。这对于：</p><ul><li>运营商 NAT 后面的客户端（如手机 4G/5G）</li><li>长时间不活跃的连接</li></ul><p><strong>非常关键</strong>：不加这个参数，NAT 映射超时后服务端无法主动联系客户端，直到客户端主动发包。</p><hr><h2 id=7-踩坑记录>7. 踩坑记录</h2><h3 id=-坑-1能连上但-ping-不通内网>❌ 坑 1：能连上但 ping 不通内网</h3><p><strong>现象</strong>：<code>wg show</code> 显示握手成功，但 <code>ping 192.168.1.1</code> 不通。</p><p><strong>排查</strong>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 检查 IP 转发是否开启</span>
+</span></span><span class=line><span class=cl>sysctl net.ipv4.ip_forward
+</span></span><span class=line><span class=cl><span class=c1># 应输出: net.ipv4.ip_forward = 1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 检查 iptables NAT 规则</span>
+</span></span><span class=line><span class=cl>sudo iptables -t nat -L POSTROUTING -v
+</span></span><span class=line><span class=cl><span class=c1># 确认 MASQUERADE 规则存在</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. 检查防火墙</span>
+</span></span><span class=line><span class=cl>sudo ufw status
+</span></span><span class=line><span class=cl><span class=c1># 确保 UDP 51820 已放行</span>
+</span></span></code></pre></td></tr></table></div></div><p><strong>修复</strong>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 如果转发没开</span>
+</span></span><span class=line><span class=cl>sudo sysctl -w net.ipv4.ip_forward<span class=o>=</span><span class=m>1</span>
+</span></span><span class=line><span class=cl><span class=nb>echo</span> <span class=s2>&#34;net.ipv4.ip_forward = 1&#34;</span> <span class=p>|</span> sudo tee -a /etc/sysctl.conf
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 如果 NAT 规则缺失，手动添加</span>
+</span></span><span class=line><span class=cl>sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+</span></span><span class=line><span class=cl>sudo iptables -A FORWARD -i wg0 -j ACCEPT
+</span></span><span class=line><span class=cl>sudo iptables -A FORWARD -o wg0 -j ACCEPT
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-2docker-部署后宿主机自身无法访问-vpn-内网>❌ 坑 2：Docker 部署后宿主机自身无法访问 VPN 内网</h3><p><strong>现象</strong>：外部手机能正常访问内网，宿主机上却 ping 不通客户端的 VPN IP (<code>10.6.0.x</code>)。</p><p><strong>原因</strong>：Docker 的 bridge 网络与宿主机网络栈隔离，宿主机默认没有到 <code>10.6.0.0/24</code> 的路由。</p><p><strong>修复</strong>：在宿主机上添加静态路由：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo ip route add 10.6.0.0/24 via &lt;wg-easy容器IP&gt; dev docker0
+</span></span></code></pre></td></tr></table></div></div><p>更优雅的方式是把 <code>wg-easy</code> 的网络模式改为 <code>host</code>（但会失去容器网络隔离）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>network_mode</span><span class=p>:</span><span class=w> </span><span class=l>host</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 使用 host 网络后不再需要 ports 映射</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=-坑-3国内部分运营商-udp-qos-严重限速>❌ 坑 3：国内部分运营商 UDP QoS 严重限速</h3><p><strong>现象</strong>：白天 WireGuard 速度正常，晚高峰降到几百 Kbps。</p><p><strong>原因</strong>：部分运营商（尤其是移动 4G/5G）对 UDP 流量进行深度限速。</p><p><strong>缓解方案</strong>：</p><ol><li><strong>换端口</strong>：不用默认的 51820，改用 443（伪装成 HTTPS 流量）</li><li><strong>udp2raw</strong>：将 UDP 包封装成 TCP（伪装成 TCP 连接），成本是额外 ~5% 开销</li><li><strong>换运营商</strong>：电信/联通对 UDP 限速相对宽松</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 更改监听端口为 443</span>
+</span></span><span class=line><span class=cl><span class=c1># wg-easy docker-compose:</span>
+</span></span><span class=line><span class=cl>- <span class=nv>WG_PORT</span><span class=o>=</span><span class=m>443</span>
+</span></span><span class=line><span class=cl>  ports:
+</span></span><span class=line><span class=cl>    - <span class=s2>&#34;443:443/udp&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 路由器端口转发也改为 443</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-4ddns-域名解析-ip-更新延迟>❌ 坑 4：DDNS 域名解析 IP 更新延迟</h3><p><strong>现象</strong>：公网 IP 变化后，客户端连不上。</p><p><strong>修复</strong>：WireGuard 的 DNS 解析只在启动时进行一次。可以写一个脚本监控 endpoint 的 IP 变化并重启接口：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=c1># wg-resolve.sh — 每 5 分钟检查 DNS 并重连</span>
+</span></span><span class=line><span class=cl><span class=k>while</span> true<span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>    wg show wg0 endpoints <span class=p>|</span> <span class=k>while</span> <span class=nb>read</span> -r line<span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>        <span class=c1># 如果 endpoint 不可达，重连</span>
+</span></span><span class=line><span class=cl>        :
+</span></span><span class=line><span class=cl>    <span class=k>done</span>
+</span></span><span class=line><span class=cl>    sleep <span class=m>300</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><p>更简单的方法：用 <code>wg syncconf</code> + systemd timer 每 5 分钟刷新一次配置。</p><hr><h2 id=8-与-tailscale--zerotier-的对比>8. 与 Tailscale / ZeroTier 的对比</h2><div class=table-wrapper><table><thead><tr><th>维度</th><th>WireGuard 自建</th><th>Tailscale</th><th>ZeroTier</th></tr></thead><tbody><tr><td><strong>控制面</strong></td><td>自管</td><td>Tailscale 协调服务器</td><td>ZeroTier 根服务器</td></tr><tr><td><strong>打洞能力</strong></td><td>❌ 无（需公网 IP 或端口转发）</td><td>✅ NAT 穿透优秀</td><td>✅ 支持 UDP 打洞</td></tr><tr><td><strong>配置复杂度</strong></td><td>⚠️ 中等</td><td>🏆 极简</td><td>🏆 简单</td></tr><tr><td><strong>成本</strong></td><td>🏆 免费</td><td>免费（3 用户，100 设备）</td><td>免费（25 节点）</td></tr><tr><td><strong>依赖外部服务</strong></td><td>🏆 无</td><td>✅ 需要</td><td>✅ 需要</td></tr><tr><td><strong>性能</strong></td><td>🏆 最高（直连）</td><td>⚠️ DERP 中继有瓶颈</td><td>⚠️ 中继有瓶颈</td></tr><tr><td><strong>适合场景</strong></td><td>有公网 IP & 追求控制权</td><td>复杂 NAT 环境 & 省心</td><td>大量节点 & SDN 玩法</td></tr></tbody></table></div><p><strong>结论</strong>：</p><ul><li>有公网 IP → <strong>WireGuard 自建</strong>，性能最高，零外部依赖</li><li>没公网 IP / 对等网络复杂 → <strong>Tailscale</strong>，开箱即用</li><li>大量节点 + 需要 SDN 拓扑 → <strong>ZeroTier</strong></li></ul><hr><h2 id=9-安全加固清单>9. 安全加固清单</h2><p>部署完成后的安全检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 确认私钥权限正确</span>
+</span></span><span class=line><span class=cl>ls -la /etc/wireguard/keys/
+</span></span><span class=line><span class=cl><span class=c1># 私钥应为 600 (rw-------)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 确认只开放了 UDP 51820（不要开放 TCP 51820 除非需要 wg-easy UI）</span>
+</span></span><span class=line><span class=cl>sudo ss -tuln <span class=p>|</span> grep <span class=m>51820</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. 确认 iptables 规则正确</span>
+</span></span><span class=line><span class=cl>sudo iptables -L FORWARD -v
+</span></span><span class=line><span class=cl>sudo iptables -t nat -L POSTROUTING -v
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 4. 检查 wg 接口状态</span>
+</span></span><span class=line><span class=cl>sudo wg show
+</span></span><span class=line><span class=cl><span class=c1># 确认只有预期的 peer 列表</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 5. 禁用不需要的客户端</span>
+</span></span><span class=line><span class=cl><span class=c1># wg-easy: 在 Web UI 中禁用</span>
+</span></span><span class=line><span class=cl><span class=c1># 原生: 注释掉 /etc/wireguard/wg0.conf 中对应 [Peer] 段后执行</span>
+</span></span><span class=line><span class=cl>sudo wg syncconf wg0 &lt;<span class=o>(</span>wg-quick strip wg0<span class=o>)</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=总结>总结</h2><div class=table-wrapper><table><thead><tr><th>维度</th><th>结论</th></tr></thead><tbody><tr><td>✅ 推荐方案</td><td><strong>Docker wg-easy</strong> 用于日常管理，原生用于性能极致场景</td></tr><tr><td>✅ 关键配置</td><td><code>net.ipv4.ip_forward=1</code> + MASQUERADE NAT 规则</td></tr><tr><td>✅ 生产建议</td><td>开 Split Tunneling + PersistentKeepalive + 定期检查 peer 列表</td></tr><tr><td>⚠️ 注意</td><td>国内运营商 UDP QoS 问题，必要时换 443 端口或用 udp2raw</td></tr><tr><td>🔗 关联阅读</td><td><a class=link href=/p/traefik-reverse-proxy-homelab/>Traefik 反向代理 + SSL 指南</a></td></tr></tbody></table></div><p><strong>一句话</strong>：花半小时搭好 WireGuard，你就获得了随时随地的家庭内网安全入口——这是 Homelab 最值得的投资之一。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

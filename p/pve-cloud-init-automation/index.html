@@ -1,0 +1,452 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="告别手动装系统！深入掌握 Proxmox VE 的 Cloud-Init 功能——镜像准备、模板制作、SSH 密钥注入、静态 IP 自动配置，以及 vendor.yaml 高级定制与常见踩坑全解。"><title>Proxmox VE Cloud-Init 完全指南：从模板到克隆，SSH密钥注入、IP自动配置与踩坑实录</title><link rel=canonical href=https://shallowhave.github.io/p/pve-cloud-init-automation/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Proxmox VE Cloud-Init 完全指南：从模板到克隆，SSH密钥注入、IP自动配置与踩坑实录"><meta property='og:description' content="告别手动装系统！深入掌握 Proxmox VE 的 Cloud-Init 功能——镜像准备、模板制作、SSH 密钥注入、静态 IP 自动配置，以及 vendor.yaml 高级定制与常见踩坑全解。"><meta property='og:url' content='https://shallowhave.github.io/p/pve-cloud-init-automation/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-11T01:01:37+08:00'><meta property='article:modified_time' content='2026-05-11T01:01:37+08:00'><meta name=twitter:title content="Proxmox VE Cloud-Init 完全指南：从模板到克隆，SSH密钥注入、IP自动配置与踩坑实录"><meta name=twitter:description content="告别手动装系统！深入掌握 Proxmox VE 的 Cloud-Init 功能——镜像准备、模板制作、SSH 密钥注入、静态 IP 自动配置，以及 vendor.yaml 高级定制与常见踩坑全解。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-cloud-init-是什么>1. Cloud-Init 是什么？</a></li><li><a href=#2-准备-cloud-init-镜像>2. 准备 Cloud-Init 镜像</a><ol><li><a href=#21-使用-pve-内置下载推荐>2.1 使用 PVE 内置下载（推荐）</a></li><li><a href=#22-调整镜像大小>2.2 调整镜像大小</a></li><li><a href=#23-导入到-proxmox-ve>2.3 导入到 Proxmox VE</a></li></ol></li><li><a href=#3-cloud-init-核心配置>3. Cloud-Init 核心配置</a><ol><li><a href=#31-基础配置用户密码ssh>3.1 基础配置：用户、密码、SSH</a></li><li><a href=#32-网络配置dhcp-vs-静态-ip>3.2 网络配置：DHCP vs 静态 IP</a></li><li><a href=#33-dns-配置>3.3 DNS 配置</a></li><li><a href=#34-转换为模板>3.4 转换为模板</a></li></ol></li><li><a href=#4-从模板克隆部署>4. 从模板克隆部署</a><ol><li><a href=#41-完整克隆>4.1 完整克隆</a></li><li><a href=#42-链接克隆节省空间>4.2 链接克隆（节省空间）</a></li><li><a href=#43-批量部署脚本>4.3 批量部署脚本</a></li></ol></li><li><a href=#5-高级定制vendoryaml-与-useryaml>5. 高级定制：vendor.yaml 与 user.yaml</a><ol><li><a href=#51-创建自定义-cloud-init-文件>5.1 创建自定义 Cloud-Init 文件</a></li><li><a href=#52-关联自定义配置>5.2 关联自定义配置</a></li></ol></li><li><a href=#6-实时查看-cloud-init-日志>6. 实时查看 Cloud-Init 日志</a></li><li><a href=#7-常见发行版的-cloud-init-差异>7. 常见发行版的 Cloud-Init 差异</a></li><li><a href=#8-踩坑记录>8. 踩坑记录</a><ol><li><a href=#-坑-1cloud-init-驱动器未添加>❌ 坑 1：Cloud-Init 驱动器未添加</a></li><li><a href=#-坑-2修改配置后不生效>❌ 坑 2：修改配置后不生效</a></li><li><a href=#-坑-3qemu-guest-agent-未安装导致-ip-不可见>❌ 坑 3：<code>qemu-guest-agent</code> 未安装导致 IP 不可见</a></li><li><a href=#-坑-4dhcp-获取不到-ip>❌ 坑 4：DHCP 获取不到 IP</a></li><li><a href=#-坑-5模板磁盘格式不兼容>❌ 坑 5：模板磁盘格式不兼容</a></li></ol></li><li><a href=#9-总结>9. 总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/pve-cloud-init-automation/>Proxmox VE Cloud-Init 完全指南：从模板到克隆，SSH密钥注入、IP自动配置与踩坑实录</a></h2><h3 class=article-subtitle>告别手动装系统！深入掌握 Proxmox VE 的 Cloud-Init 功能——镜像准备、模板制作、SSH 密钥注入、静态 IP 自动配置，以及 vendor.yaml 高级定制与常见踩坑全解。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 11, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 6 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>你是否有过这种体验：新建一台虚拟机，挂 ISO、等安装界面、选语言、设分区、配用户、改 SSH 配置、敲 <code>ip addr</code> 看 DHCP 分配的地址……整个过程少则五分钟，多则半小时。当你有 5 台、10 台虚拟机要批量部署时，这简直是噩梦。</p><p><strong>Cloud-Init</strong> 就是来终结这种手工劳动的。它是云厂商（AWS、Azure、GCP）的标准初始化方案，也是你在 Proxmox VE 上实现 <strong>&ldquo;一次配置、秒级克隆&rdquo;</strong> 的关键工具。本文将从原理到实战，带你彻底掌握 PVE 上的 Cloud-Init 自动化部署。</p><hr><h2 id=1-cloud-init-是什么>1. Cloud-Init 是什么？</h2><p>Cloud-Init 是 Canonical 开发的开源工具，负责在虚拟机<strong>首次启动时</strong>完成初始化工作。它的工作流程非常简单：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>VM 首次启动 → 读取 metadata/userdata → 执行配置 → 完成初始化 → 禁用自身
+</span></span></code></pre></td></tr></table></div></div><p>支持的操作：</p><ul><li>🏷️ 设置主机名</li><li>👤 创建用户、设置密码、注入 SSH 公钥</li><li>🌐 配置静态 IP / DHCP / DNS</li><li>📦 安装软件包、执行脚本</li><li>💾 扩容磁盘、挂载文件系统</li><li>📝 写入任意文件</li></ul><p>在 PVE 中，Cloud-Init 通过 <strong>虚拟 CD-ROM (IDE 设备)</strong> 向 VM 注入配置文件，标准名为 <code>NoCloud</code> 数据源。</p><hr><h2 id=2-准备-cloud-init-镜像>2. 准备 Cloud-Init 镜像</h2><p>PVE 内置了主流发行版的 Cloud-Init 镜像下载工具，你也可以手动导入。</p><h3 id=21-使用-pve-内置下载推荐>2.1 使用 PVE 内置下载（推荐）</h3><p>在 PVE Web UI 中，选择 <code>local</code> 存储 → <strong>CT 模板 / ISO 镜像</strong>，或者直接用命令：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 查看可用的 Cloud-Init 镜像</span>
+</span></span><span class=line><span class=cl>pveam available <span class=p>|</span> grep -i cloud
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1># system   ubuntu-22.04-standard_22.04-1_amd64.tar.gz</span>
+</span></span><span class=line><span class=cl><span class=c1># system   debian-12-standard_12.2-1_amd64.tar.gz</span>
+</span></span><span class=line><span class=cl><span class=c1># ...</span>
+</span></span></code></pre></td></tr></table></div></div><p>但注意：<code>pveam</code> 下载的是 <strong>LXC 模板</strong>，不是 Cloud-Init VM 镜像。要获取 Cloud-Init VM 镜像，直接下载官方 <code>.qcow2</code> 或 <code>.img</code> 文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># Ubuntu 22.04 Cloud-Init 镜像</span>
+</span></span><span class=line><span class=cl>wget https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img <span class=se>\
+</span></span></span><span class=line><span class=cl>  -O /var/lib/vz/template/iso/jammy-cloudimg-amd64.img
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Debian 12 Cloud-Init 镜像</span>
+</span></span><span class=line><span class=cl>wget https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2 <span class=se>\
+</span></span></span><span class=line><span class=cl>  -O /var/lib/vz/template/iso/debian-12-cloudimg-amd64.qcow2
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Rocky Linux 9</span>
+</span></span><span class=line><span class=cl>wget https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2 <span class=se>\
+</span></span></span><span class=line><span class=cl>  -O /var/lib/vz/template/iso/rocky-9-cloudimg-amd64.qcow2
+</span></span></code></pre></td></tr></table></div></div><h3 id=22-调整镜像大小>2.2 调整镜像大小</h3><p>官方 Cloud 镜像通常只有 2-5 GB，你需要扩容才能用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 扩容到 32GB</span>
+</span></span><span class=line><span class=cl>qemu-img resize /var/lib/vz/template/iso/jammy-cloudimg-amd64.img 32G
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>⚠️ 必须在<strong>导入 PVE 之前</strong>扩容。导入后再扩容应使用 <code>qm resize</code>，但磁盘格式必须是 <code>qcow2</code> 且无快照。</p></blockquote><h3 id=23-导入到-proxmox-ve>2.3 导入到 Proxmox VE</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 创建 VM（ID=9000，作为模板）</span>
+</span></span><span class=line><span class=cl>qm create <span class=m>9000</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --name ubuntu-2204-cloudinit-template <span class=se>\
+</span></span></span><span class=line><span class=cl>  --memory <span class=m>2048</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --cores <span class=m>2</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --net0 virtio,bridge<span class=o>=</span>vmbr0 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --ostype l26
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 导入磁盘</span>
+</span></span><span class=line><span class=cl>qm importdisk <span class=m>9000</span> /var/lib/vz/template/iso/jammy-cloudimg-amd64.img local-lvm
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 附加磁盘为 scsi0</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9000-disk-0
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 添加 Cloud-Init 驱动器（关键步骤！）</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --ide2 local-lvm:cloudinit
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 设置启动顺序</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --boot <span class=nv>order</span><span class=o>=</span>scsi0
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 启用 QEMU Guest Agent</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --agent <span class=nv>enabled</span><span class=o>=</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 添加串口控制台（方便 web console 调试）</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --serial0 socket --vga serial0
+</span></span></code></pre></td></tr></table></div></div><p>此时你就有了一个 &ldquo;裸&rdquo; 模板 VM，接下来配置 Cloud-Init 参数。</p><hr><h2 id=3-cloud-init-核心配置>3. Cloud-Init 核心配置</h2><h3 id=31-基础配置用户密码ssh>3.1 基础配置：用户、密码、SSH</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 设置用户名和密码</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --ciuser ubuntu
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --cipassword <span class=s2>&#34;YourSecurePassword123&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 注入 SSH 公钥（推荐，避免密码登录）</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --sshkeys ~/.ssh/id_ed25519.pub
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 设置主机名</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --cihostname cloud-template
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>💡 <strong>最佳实践</strong>：模板中只注入 SSH 公钥，不要设置密码。克隆后再按需修改。</p></blockquote><h3 id=32-网络配置dhcp-vs-静态-ip>3.2 网络配置：DHCP vs 静态 IP</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># DHCP（默认）</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --ipconfig0 <span class=nv>ip</span><span class=o>=</span>dhcp
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 静态 IP</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --ipconfig0 <span class=nv>ip</span><span class=o>=</span>192.168.1.100/24,gw<span class=o>=</span>192.168.1.1
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># IPv6 SLAAC</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --ipconfig0 <span class=nv>ip</span><span class=o>=</span>dhcp,ip6<span class=o>=</span>auto
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 多网卡</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --net0 virtio,bridge<span class=o>=</span>vmbr0 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --net1 virtio,bridge<span class=o>=</span>vmbr1 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --ipconfig0 <span class=nv>ip</span><span class=o>=</span>192.168.1.100/24,gw<span class=o>=</span>192.168.1.1 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --ipconfig1 <span class=nv>ip</span><span class=o>=</span>10.0.0.100/24
+</span></span></code></pre></td></tr></table></div></div><h3 id=33-dns-配置>3.3 DNS 配置</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --nameserver <span class=s2>&#34;8.8.8.8 1.1.1.1&#34;</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --searchdomain <span class=s2>&#34;home.lab&#34;</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=34-转换为模板>3.4 转换为模板</h3><p>配置完成后，转换为模板以保护基础镜像：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm template <span class=m>9000</span>
+</span></span></code></pre></td></tr></table></div></div><p>现在 <code>9000</code> 变成了只读模板，无法直接启动。</p><hr><h2 id=4-从模板克隆部署>4. 从模板克隆部署</h2><h3 id=41-完整克隆>4.1 完整克隆</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 从模板 9000 克隆为 VM 101</span>
+</span></span><span class=line><span class=cl>qm clone <span class=m>9000</span> <span class=m>101</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --name web-server-01 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --full <span class=nb>true</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --storage local-lvm
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 修改 Cloud-Init 参数（每台 VM 独立配置）</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>101</span> --cihostname web-01
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>101</span> --ipconfig0 <span class=nv>ip</span><span class=o>=</span>192.168.1.101/24,gw<span class=o>=</span>192.168.1.1
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>101</span> --sshkeys ~/.ssh/id_ed25519.pub
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>101</span> --ciuser admin
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 启动</span>
+</span></span><span class=line><span class=cl>qm start <span class=m>101</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=42-链接克隆节省空间>4.2 链接克隆（节省空间）</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm clone <span class=m>9000</span> <span class=m>102</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --name web-server-02 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --full <span class=nb>false</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --storage local-lvm
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>102</span> --cihostname web-02
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>102</span> --ipconfig0 <span class=nv>ip</span><span class=o>=</span>192.168.1.102/24,gw<span class=o>=</span>192.168.1.1
+</span></span><span class=line><span class=cl>qm start <span class=m>102</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>❗ 链接克隆依赖模板磁盘，删除模板前必须先 <code>qm template 9000 --disk scsi0,size=32G</code> 将所有链接克隆转为完整磁盘。</p></blockquote><h3 id=43-批量部署脚本>4.3 批量部署脚本</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=nv>TEMPLATE_ID</span><span class=o>=</span><span class=m>9000</span>
+</span></span><span class=line><span class=cl><span class=nv>NAMES</span><span class=o>=(</span><span class=s2>&#34;web-01&#34;</span> <span class=s2>&#34;web-02&#34;</span> <span class=s2>&#34;db-01&#34;</span> <span class=s2>&#34;cache-01&#34;</span><span class=o>)</span>
+</span></span><span class=line><span class=cl><span class=nv>IPS</span><span class=o>=(</span><span class=s2>&#34;192.168.1.101&#34;</span> <span class=s2>&#34;192.168.1.102&#34;</span> <span class=s2>&#34;192.168.1.103&#34;</span> <span class=s2>&#34;192.168.1.104&#34;</span><span class=o>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>for</span> i in <span class=s2>&#34;</span><span class=si>${</span><span class=p>!NAMES[@]</span><span class=si>}</span><span class=s2>&#34;</span><span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>  <span class=nv>VMID</span><span class=o>=</span><span class=k>$((</span><span class=m>200</span> <span class=o>+</span> i<span class=k>))</span>
+</span></span><span class=line><span class=cl>  <span class=nb>echo</span> <span class=s2>&#34;Creating </span><span class=si>${</span><span class=nv>NAMES</span><span class=p>[</span><span class=nv>$i</span><span class=p>]</span><span class=si>}</span><span class=s2> (VMID=</span><span class=nv>$VMID</span><span class=s2>, IP=</span><span class=si>${</span><span class=nv>IPS</span><span class=p>[</span><span class=nv>$i</span><span class=p>]</span><span class=si>}</span><span class=s2>)...&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  qm clone <span class=nv>$TEMPLATE_ID</span> <span class=nv>$VMID</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --name <span class=s2>&#34;</span><span class=si>${</span><span class=nv>NAMES</span><span class=p>[</span><span class=nv>$i</span><span class=p>]</span><span class=si>}</span><span class=s2>&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --full <span class=nb>true</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --storage local-lvm
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  qm <span class=nb>set</span> <span class=nv>$VMID</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --cihostname <span class=s2>&#34;</span><span class=si>${</span><span class=nv>NAMES</span><span class=p>[</span><span class=nv>$i</span><span class=p>]</span><span class=si>}</span><span class=s2>&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --ipconfig0 <span class=s2>&#34;ip=</span><span class=si>${</span><span class=nv>IPS</span><span class=p>[</span><span class=nv>$i</span><span class=p>]</span><span class=si>}</span><span class=s2>/24,gw=192.168.1.1&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --sshkeys ~/.ssh/id_ed25519.pub
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  qm start <span class=nv>$VMID</span>
+</span></span><span class=line><span class=cl>  <span class=nb>echo</span> <span class=s2>&#34;✅ </span><span class=si>${</span><span class=nv>NAMES</span><span class=p>[</span><span class=nv>$i</span><span class=p>]</span><span class=si>}</span><span class=s2> started&#34;</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=5-高级定制vendoryaml-与-useryaml>5. 高级定制：vendor.yaml 与 user.yaml</h2><p>PVE 的 Web UI 只能配置基础参数。要实现<strong>安装软件包、写入文件、执行脚本</strong>，你需要自定义 <code>cicustom</code>。</p><h3 id=51-创建自定义-cloud-init-文件>5.1 创建自定义 Cloud-Init 文件</h3><p>在 PVE 存储中创建 Snippets：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 确保 snippets 存储存在</span>
+</span></span><span class=line><span class=cl>pvesm status <span class=p>|</span> grep snippets
+</span></span><span class=line><span class=cl><span class=c1># 如果不存在，在 /etc/pve/storage.cfg 中定义</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>mkdir -p /var/lib/vz/snippets
+</span></span></code></pre></td></tr></table></div></div><p>创建 <code>user.yaml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=c># /var/lib/vz/snippets/ubuntu-user.yaml</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c>#cloud-config</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>hostname</span><span class=p>:</span><span class=w> </span>{{<span class=w> </span><span class=l>hostname }}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>manage_etc_hosts</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>users</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>admin</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>sudo</span><span class=p>:</span><span class=w> </span><span class=l>ALL=(ALL) NOPASSWD:ALL</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>groups</span><span class=p>:</span><span class=w> </span><span class=l>sudo, docker</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>shell</span><span class=p>:</span><span class=w> </span><span class=l>/bin/bash</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ssh_authorized_keys</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI...</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>package_update</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>package_upgrade</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>packages</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>qemu-guest-agent</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>htop</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>vim</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>curl</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>wget</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>git</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>net-tools</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>ca-certificates</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>gnupg</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>write_files</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=l>/etc/sysctl.d/99-custom.conf</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>content</span><span class=p>:</span><span class=w> </span><span class=p>|</span><span class=sd>
+</span></span></span><span class=line><span class=cl><span class=sd>      net.core.default_qdisc=fq
+</span></span></span><span class=line><span class=cl><span class=sd>      net.ipv4.tcp_congestion_control=bbr
+</span></span></span><span class=line><span class=cl><span class=sd>      vm.swappiness=1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>permissions</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;0644&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=l>/etc/ssh/sshd_config.d/99-hardening.conf</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>content</span><span class=p>:</span><span class=w> </span><span class=p>|</span><span class=sd>
+</span></span></span><span class=line><span class=cl><span class=sd>      PermitRootLogin prohibit-password
+</span></span></span><span class=line><span class=cl><span class=sd>      PasswordAuthentication no
+</span></span></span><span class=line><span class=cl><span class=sd>      X11Forwarding no</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>permissions</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;0644&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>runcmd</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>sysctl --system</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>systemctl restart sshd</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>timedatectl set-timezone Asia/Shanghai</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=p>[</span><span class=l>mkdir, -p, /opt/apps]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>final_message</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Cloud-Init 初始化完成！系统于 $UPTIME 秒后启动。&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=52-关联自定义配置>5.2 关联自定义配置</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>101</span> --cicustom <span class=s2>&#34;user=local:snippets/ubuntu-user.yaml&#34;</span>
+</span></span></code></pre></td></tr></table></div></div><p>你还可以分离 <code>vendor.yaml</code>（厂商配置）和 <code>network-config</code>（网络配置）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 自定义网络配置</span>
+</span></span><span class=line><span class=cl>cat &gt; /var/lib/vz/snippets/static-net.yaml <span class=s>&lt;&lt; &#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>version: 2
+</span></span></span><span class=line><span class=cl><span class=s>ethernets:
+</span></span></span><span class=line><span class=cl><span class=s>  ens18:
+</span></span></span><span class=line><span class=cl><span class=s>    dhcp4: false
+</span></span></span><span class=line><span class=cl><span class=s>    addresses:
+</span></span></span><span class=line><span class=cl><span class=s>      - 192.168.1.101/24
+</span></span></span><span class=line><span class=cl><span class=s>    gateway4: 192.168.1.1
+</span></span></span><span class=line><span class=cl><span class=s>    nameservers:
+</span></span></span><span class=line><span class=cl><span class=s>      addresses: [223.5.5.5, 8.8.8.8]
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>101</span> --cicustom <span class=s2>&#34;user=local:snippets/ubuntu-user.yaml,network=local:snippets/static-net.yaml&#34;</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>📌 <code>cicustom</code> 的格式是 <code>key=storage:path</code>，其中 key 可以是 <code>user</code>、<code>vendor</code>、<code>network</code>、<code>meta</code>。</p></blockquote><hr><h2 id=6-实时查看-cloud-init-日志>6. 实时查看 Cloud-Init 日志</h2><p>VM 启动后，通过 PVE Console 或 SSH 查看初始化进度：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 查看 Cloud-Init 状态（在 VM 内执行）</span>
+</span></span><span class=line><span class=cl>cloud-init status
+</span></span><span class=line><span class=cl><span class=c1># 输出: status: done</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 详细日志</span>
+</span></span><span class=line><span class=cl>tail -f /var/log/cloud-init-output.log
+</span></span><span class=line><span class=cl>tail -f /var/log/cloud-init.log
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 分析初始化耗时</span>
+</span></span><span class=line><span class=cl>cloud-init analyze show
+</span></span><span class=line><span class=cl>cloud-init analyze blame
+</span></span></code></pre></td></tr></table></div></div><p>在 PVE 宿主机上也可以通过 <code>qm terminal</code> 连接：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm terminal <span class=m>101</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=7-常见发行版的-cloud-init-差异>7. 常见发行版的 Cloud-Init 差异</h2><div class=table-wrapper><table><thead><tr><th>发行版</th><th>默认用户名</th><th>镜像后缀</th><th>注意事项</th></tr></thead><tbody><tr><td><strong>Ubuntu</strong></td><td><code>ubuntu</code></td><td><code>-cloudimg-amd64.img</code></td><td>Agent 默认安装；密码登录默认禁用</td></tr><tr><td><strong>Debian</strong></td><td><code>debian</code> (12+) / <code>root</code> (11)</td><td><code>-genericcloud-amd64.qcow2</code></td><td>需手动安装 <code>qemu-guest-agent</code></td></tr><tr><td><strong>Rocky Linux</strong></td><td><code>rocky</code></td><td><code>-GenericCloud-*.qcow2</code></td><td>SELinux 默认 enforcing</td></tr><tr><td><strong>AlmaLinux</strong></td><td><code>almalinux</code></td><td><code>-GenericCloud-*.qcow2</code></td><td>与 Rocky 类似</td></tr><tr><td><strong>Fedora</strong></td><td><code>fedora</code></td><td><code>-Cloud-Base-*.qcow2</code></td><td>启动后默认扩容根分区</td></tr><tr><td><strong>CentOS Stream</strong></td><td><code>centos</code></td><td><code>-GenericCloud-*.qcow2</code></td><td>注意 EOL 日期</td></tr><tr><td><strong>Arch Linux</strong></td><td><code>arch</code></td><td>社区提供</td><td>滚动更新，无固定版本</td></tr><tr><td><strong>Alpine Linux</strong></td><td><code>alpine</code></td><td><code>-cloud-*.qcow2</code></td><td>使用 <code>busybox</code>，无 systemd</td></tr></tbody></table></div><blockquote><p>💡 不同发行版对 <code>package_update</code> 和 <code>package_upgrade</code> 的行为不同。Ubuntu/Debian 正常，Alpine 的 <code>apk</code> 需要额外处理。</p></blockquote><hr><h2 id=8-踩坑记录>8. 踩坑记录</h2><h3 id=-坑-1cloud-init-驱动器未添加>❌ 坑 1：Cloud-Init 驱动器未添加</h3><p><strong>现象</strong>：VM 启动后卡在 <code>Probing EDD (edd=off to disable)...</code> 或直接进入 cloud-init 超时等待。</p><p><strong>根因</strong>：忘记添加 IDE Cloud-Init 驱动器。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 修复</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> &lt;VMID&gt; --ide2 local-lvm:cloudinit
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-2修改配置后不生效>❌ 坑 2：修改配置后不生效</h3><p><strong>现象</strong>：修改了 <code>--ciuser</code> 或 <code>--ipconfig0</code>，重启 VM 后没变化。</p><p><strong>根因</strong>：Cloud-Init 只在<strong>首次启动</strong>运行！这是最容易被忽视的机制。</p><p><strong>解决方案</strong>：重置 Cloud-Init 状态并重新生成 ISO：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 方法 1：在 VM 内重置</span>
+</span></span><span class=line><span class=cl>cloud-init clean --logs --reboot
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 方法 2：在 PVE 上重新生成配置驱动器</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> &lt;VMID&gt; --ide2 none             <span class=c1># 移除旧的</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> &lt;VMID&gt; --ide2 local-lvm:cloudinit  <span class=c1># 重建</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-3qemu-guest-agent-未安装导致-ip-不可见>❌ 坑 3：<code>qemu-guest-agent</code> 未安装导致 IP 不可见</h3><p><strong>现象</strong>：PVE Web UI 的 Summary 中不显示 VM IP 地址。</p><p><strong>解决</strong>：在 <code>user.yaml</code> 的 <code>packages</code> 中添加 <code>qemu-guest-agent</code>，并在 PVE 中启用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm <span class=nb>set</span> &lt;VMID&gt; --agent <span class=nv>enabled</span><span class=o>=</span><span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-4dhcp-获取不到-ip>❌ 坑 4：DHCP 获取不到 IP</h3><p><strong>现象</strong>：Debian Cloud 镜像启动后 <code>ip a</code> 看不到 IP。</p><p><strong>根因</strong>：Debian Cloud 镜像默认不启用网卡 DHCP。</p><p><strong>解决</strong>：确保 <code>ipconfig0</code> 设置正确，或在自定义 <code>network-config</code> 中显式配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>version</span><span class=p>:</span><span class=w> </span><span class=m>2</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>ethernets</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ens18</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>dhcp4</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=-坑-5模板磁盘格式不兼容>❌ 坑 5：模板磁盘格式不兼容</h3><p><strong>现象</strong>：<code>qm importdisk</code> 后磁盘格式是 <code>raw</code>，无法做快照。</p><p><strong>解决</strong>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 先转换格式再导入</span>
+</span></span><span class=line><span class=cl>qemu-img convert -f qcow2 -O qcow2 source.img dest.qcow2
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 或者在 PVE 中移动磁盘时指定格式</span>
+</span></span><span class=line><span class=cl>qm move-disk &lt;VMID&gt; scsi0 local-lvm --format qcow2
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=9-总结>9. 总结</h2><p>Cloud-Init 是 Proxmox VE 自动化部署的核心工具，掌握它可以让你：</p><div class=table-wrapper><table><thead><tr><th>维度</th><th>结论</th></tr></thead><tbody><tr><td>✅ <strong>推荐工作流</strong></td><td>下载 Cloud 镜像 → resize → 导入 PVE → 配置 SSH 公钥 + user.yaml → 转为模板 → 克隆部署</td></tr><tr><td>✅ <strong>最佳实践</strong></td><td>模板只设 SSH 公钥，不设密码；克隆后按需修改 hostname/IP</td></tr><tr><td>✅ <strong>核心命令</strong></td><td><code>qm create</code> → <code>qm importdisk</code> → <code>qm set --ide2 cloudinit</code> → <code>qm template</code> → <code>qm clone</code></td></tr><tr><td>⚠️ <strong>最易出错</strong></td><td>忘记 <code>--ide2 cloudinit</code>、修改配置后不重置、qemu-guest-agent 未安装</td></tr><tr><td>🔗 <strong>关联阅读</strong></td><td><a class=link href=/p/pve-lxc-container-guide/>PVE LXC 容器完全指南</a> · <a class=link href=/p/proxmox-zfs-storage-guide/>PVE ZFS 存储配置</a> · <a class=link href=/p/wireguard-homelab-vpn-guide/>WireGuard VPN 部署</a></td></tr></tbody></table></div><p>一键从模板克隆 + SSH 密钥注入 + IP 自动配置 = <strong>30 秒出一台可用 VM</strong>。配得好，一天部署 50 台不是梦。</p><hr><p><em>本文基于 Proxmox VE 8.2 + Ubuntu 22.04 / Debian 12 Cloud 镜像验证。Cloud-Init 版本：24.1+</em></p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

@@ -1,0 +1,434 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="Homelab 不是数据中心，7x24 小主机更需要低功耗、低噪音和稳定性。本文以 Proxmox VE 为例，系统梳理 CPU C-State、PCIe ASPM、磁盘休眠、网卡节能和 powertop 持久化调优，并给出可回滚的排障方案。"><title>让 PVE 主机安静下来：Homelab 低功耗调优，从 C-State、ASPM 到 Powertop 实战</title><link rel=canonical href=https://shallowhave.github.io/p/pve-homelab-low-power-tuning/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="让 PVE 主机安静下来：Homelab 低功耗调优，从 C-State、ASPM 到 Powertop 实战"><meta property='og:description' content="Homelab 不是数据中心，7x24 小主机更需要低功耗、低噪音和稳定性。本文以 Proxmox VE 为例，系统梳理 CPU C-State、PCIe ASPM、磁盘休眠、网卡节能和 powertop 持久化调优，并给出可回滚的排障方案。"><meta property='og:url' content='https://shallowhave.github.io/p/pve-homelab-low-power-tuning/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-19T09:03:11+08:00'><meta property='article:modified_time' content='2026-05-19T09:03:11+08:00'><meta name=twitter:title content="让 PVE 主机安静下来：Homelab 低功耗调优，从 C-State、ASPM 到 Powertop 实战"><meta name=twitter:description content="Homelab 不是数据中心，7x24 小主机更需要低功耗、低噪音和稳定性。本文以 Proxmox VE 为例，系统梳理 CPU C-State、PCIe ASPM、磁盘休眠、网卡节能和 powertop 持久化调优，并给出可回滚的排障方案。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-先建立基线不要凭感觉调优>1. 先建立基线：不要凭感觉调优</a><ol><li><a href=#11-安装基础工具>1.1 安装基础工具</a></li><li><a href=#12-记录-10-分钟空载功耗>1.2 记录 10 分钟空载功耗</a></li></ol></li><li><a href=#2-cpu先确认-governor再看-c-state>2. CPU：先确认 governor，再看 C-State</a><ol><li><a href=#21-查看当前频率驱动>2.1 查看当前频率驱动</a></li><li><a href=#22-持久化-cpu-governor>2.2 持久化 CPU governor</a></li><li><a href=#23-c-state-被锁死怎么办>2.3 C-State 被锁死怎么办？</a></li></ol></li><li><a href=#3-pcie-aspm低功耗的关键但也是最容易踩坑的地方>3. PCIe ASPM：低功耗的关键，但也是最容易踩坑的地方</a><ol><li><a href=#31-查看当前-aspm-状态>3.1 查看当前 ASPM 状态</a></li><li><a href=#32-临时启用-powersave-策略>3.2 临时启用 powersave 策略</a></li><li><a href=#33-持久化-aspm>3.3 持久化 ASPM</a></li></ol></li><li><a href=#4-powertop可以用但不要无脑全自动>4. Powertop：可以用，但不要无脑全自动</a><ol><li><a href=#41-先生成报告>4.1 先生成报告</a></li><li><a href=#42-临时执行-auto-tune>4.2 临时执行 auto-tune</a></li><li><a href=#43-排除指定-usb-设备的-autosuspend>4.3 排除指定 USB 设备的 autosuspend</a></li><li><a href=#44-持久化-powertop-auto-tune>4.4 持久化 powertop auto-tune</a></li></ol></li><li><a href=#5-磁盘省电和寿命要平衡>5. 磁盘：省电和寿命要平衡</a><ol><li><a href=#51-sata-链路电源管理>5.1 SATA 链路电源管理</a></li><li><a href=#52-hdd-是否要休眠>5.2 HDD 是否要休眠？</a></li><li><a href=#53-nvme-apst>5.3 NVMe APST</a></li></ol></li><li><a href=#6-网卡eee-能省电但也可能带来延迟毛刺>6. 网卡：EEE 能省电，但也可能带来延迟毛刺</a></li><li><a href=#7-pve-虚拟机侧也要配合>7. PVE 虚拟机侧也要配合</a><ol><li><a href=#71-给-vm-安装-qemu-guest-agent>7.1 给 VM 安装 qemu-guest-agent</a></li><li><a href=#72-避免-vm-内部高频轮询>7.2 避免 VM 内部高频轮询</a></li><li><a href=#73-windows-vm-的电源计划>7.3 Windows VM 的电源计划</a></li></ol></li><li><a href=#8-一套推荐的安全调优顺序>8. 一套推荐的安全调优顺序</a></li><li><a href=#9-踩坑记录>9. 踩坑记录</a><ol><li><a href=#-坑-1pcie_aspmforce-直接上生产>❌ 坑 1：<code>pcie_aspm=force</code> 直接上生产</a></li><li><a href=#-坑-2usb-autosuspend-让-zigbeeups-偶发掉线>❌ 坑 2：USB autosuspend 让 Zigbee/UPS 偶发掉线</a></li><li><a href=#-坑-3机械盘频繁启停>❌ 坑 3：机械盘频繁启停</a></li><li><a href=#-坑-4只看-cpu-频率不看-package-c-state>❌ 坑 4：只看 CPU 频率，不看 Package C-State</a></li></ol></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/pve-homelab-low-power-tuning/>让 PVE 主机安静下来：Homelab 低功耗调优，从 C-State、ASPM 到 Powertop 实战</a></h2><h3 class=article-subtitle>Homelab 不是数据中心，7x24 小主机更需要低功耗、低噪音和稳定性。本文以 Proxmox VE 为例，系统梳理 CPU C-State、PCIe ASPM、磁盘休眠、网卡节能和 powertop 持久化调优，并给出可回滚的排障方案。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 19, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 10 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>很多人搭 Homelab 的第一反应是堆性能：CPU 核心越多越好、内存越大越好、NVMe 越快越好。但机器真正 7x24 跑起来以后，电费、噪音和温度才是每天都能感知到的指标。尤其是放在卧室、书房、弱电箱里的 PVE 小主机，空载 35W 和空载 12W 的体验完全不同：前者风扇常转、机箱烫手，后者基本无感。</p><p>本文记录一套我更推荐的 <strong>“先测量、再调优、最后持久化”</strong> 的 PVE 低功耗方案。它不是盲目追求最低瓦数，而是在不牺牲虚拟机稳定性的前提下，把空闲功耗降下来。核心会覆盖：</p><ul><li>CPU 频率策略与 C-State 检查</li><li>PCIe ASPM 链路省电</li><li><code>powertop --auto-tune</code> 的正确打开方式</li><li>SATA/NVMe/USB 设备的节能配置</li><li>网卡 EEE 与 Wake-on-LAN 的取舍</li><li>调优后出现掉盘、网卡断流、VM 卡顿时如何回滚</li></ul><blockquote><p>重要提醒：低功耗调优一定要分阶段做。每改一项，至少观察 24 小时，确认虚拟机、Docker、NAS、Home Assistant 等服务稳定后再继续。</p></blockquote><h2 id=1-先建立基线不要凭感觉调优>1. 先建立基线：不要凭感觉调优</h2><p>调优前先记录当前状态，否则最后只会变成“好像省电了”。如果有智能插座，优先以墙上功率为准；如果没有，也可以先用软件指标观察趋势。</p><h3 id=11-安装基础工具>1.1 安装基础工具</h3><p>在 PVE 宿主机执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>apt update
+</span></span><span class=line><span class=cl>apt install -y powertop linux-cpupower lm-sensors ethtool smartmontools nvme-cli pciutils
+</span></span></code></pre></td></tr></table></div></div><p>记录当前 CPU、内核、PCIe 设备和磁盘：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>uname -a
+</span></span><span class=line><span class=cl>lscpu <span class=p>|</span> egrep <span class=s1>&#39;Model name|CPU\(s\)|Thread|MHz|Governor&#39;</span>
+</span></span><span class=line><span class=cl>lspci -nn
+</span></span><span class=line><span class=cl>lsblk -o NAME,MODEL,SIZE,ROTA,TRAN,MOUNTPOINT
+</span></span></code></pre></td></tr></table></div></div><p>如果是 Intel 平台，还可以看 CPU 是否真正进入深度 C-State：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>powertop --time<span class=o>=</span><span class=m>20</span> --html<span class=o>=</span>/root/powertop-before.html
+</span></span></code></pre></td></tr></table></div></div><p>把报告拷到本地打开，重点看 <strong>Idle stats</strong> 页面。如果 Package C-State 长时间只能到 C2/C3，空载功耗通常降不下来；能进 PC8/PC10 的小主机，空载功耗往往会明显更低。</p><h3 id=12-记录-10-分钟空载功耗>1.2 记录 10 分钟空载功耗</h3><p>先停掉高负载任务，比如备份、校验、转码、下载：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>systemctl list-timers --all <span class=p>|</span> egrep <span class=s1>&#39;apt|backup|prune|gc|scrub|fstrim&#39;</span>
+</span></span><span class=line><span class=cl>pvesh get /nodes/<span class=k>$(</span>hostname<span class=k>)</span>/qemu --output-format json-pretty <span class=p>|</span> grep -E <span class=s1>&#39;vmid|status&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后记录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># CPU 频率与 governor</span>
+</span></span><span class=line><span class=cl>cpupower frequency-info <span class=p>|</span> egrep <span class=s1>&#39;driver|governor|current CPU frequency|boost state&#39;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 温度</span>
+</span></span><span class=line><span class=cl>sensors
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 磁盘 SMART 关键字段</span>
+</span></span><span class=line><span class=cl>smartctl -a /dev/sda <span class=p>|</span> egrep <span class=s1>&#39;Power_On_Hours|Power_Cycle_Count|Load_Cycle_Count|Temperature|Power_Mode&#39;</span> <span class=o>||</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># NVMe 电源状态</span>
+</span></span><span class=line><span class=cl>nvme get-feature /dev/nvme0 -f 0x0c -H <span class=o>||</span> <span class=nb>true</span>
+</span></span></code></pre></td></tr></table></div></div><p>建议做一个简单表格：</p><div class=table-wrapper><table><thead><tr><th>阶段</th><th>墙上功率</th><th>CPU Package C-State</th><th>CPU 温度</th><th>备注</th></tr></thead><tbody><tr><td>调优前</td><td>例如 28W</td><td>C3</td><td>48℃</td><td>默认安装</td></tr><tr><td>CPU 调优后</td><td>例如 22W</td><td>C6/C8</td><td>43℃</td><td>governor 调整</td></tr><tr><td>ASPM 后</td><td>例如 16W</td><td>C8/C10</td><td>39℃</td><td>PCIe 链路省电</td></tr><tr><td>powertop 后</td><td>例如 13W</td><td>C10</td><td>36℃</td><td>USB/SATA tunables</td></tr></tbody></table></div><h2 id=2-cpu先确认-governor再看-c-state>2. CPU：先确认 governor，再看 C-State</h2><p>PVE 默认更偏向服务器稳定性，不一定会给你最激进的省电配置。对 Homelab 来说，CPU 大多数时间处于低负载，应该让它尽量进入低频和深度睡眠。</p><h3 id=21-查看当前频率驱动>2.1 查看当前频率驱动</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cpupower frequency-info
+</span></span><span class=line><span class=cl>cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver
+</span></span><span class=line><span class=cl>cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+</span></span></code></pre></td></tr></table></div></div><p>常见结果：</p><div class=table-wrapper><table><thead><tr><th>平台/驱动</th><th>常见 governor</th><th>建议</th></tr></thead><tbody><tr><td>Intel <code>intel_pstate</code> active</td><td><code>powersave</code> / <code>performance</code></td><td>Homelab 推荐 <code>powersave</code></td></tr><tr><td>Intel/AMD <code>acpi-cpufreq</code></td><td><code>ondemand</code> / <code>schedutil</code> / <code>performance</code></td><td>推荐 <code>schedutil</code> 或 <code>ondemand</code></td></tr><tr><td>新内核 AMD <code>amd-pstate</code></td><td><code>schedutil</code> / <code>powersave</code></td><td>推荐先用 <code>schedutil</code></td></tr></tbody></table></div><p>临时切换 governor：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># Intel intel_pstate 常用</span>
+</span></span><span class=line><span class=cl>cpupower frequency-set -g powersave
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 如果 powersave 不存在，可用 schedutil</span>
+</span></span><span class=line><span class=cl>cpupower frequency-set -g schedutil
+</span></span></code></pre></td></tr></table></div></div><p>验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=k>for</span> g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor<span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>  <span class=nb>echo</span> <span class=s2>&#34;</span><span class=nv>$g</span><span class=s2>: </span><span class=k>$(</span>cat <span class=nv>$g</span><span class=k>)</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=22-持久化-cpu-governor>2.2 持久化 CPU governor</h3><p>Debian/PVE 可以使用 systemd 服务持久化：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt;/etc/systemd/system/cpupower-governor.service <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>[Unit]
+</span></span></span><span class=line><span class=cl><span class=s>Description=Set CPU governor for homelab low power
+</span></span></span><span class=line><span class=cl><span class=s>After=multi-user.target
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>[Service]
+</span></span></span><span class=line><span class=cl><span class=s>Type=oneshot
+</span></span></span><span class=line><span class=cl><span class=s>ExecStart=/usr/bin/cpupower frequency-set -g powersave
+</span></span></span><span class=line><span class=cl><span class=s>RemainAfterExit=yes
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>[Install]
+</span></span></span><span class=line><span class=cl><span class=s>WantedBy=multi-user.target
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>systemctl daemon-reload
+</span></span><span class=line><span class=cl>systemctl <span class=nb>enable</span> --now cpupower-governor.service
+</span></span><span class=line><span class=cl>systemctl status cpupower-governor.service --no-pager
+</span></span></code></pre></td></tr></table></div></div><p>如果你的平台没有 <code>powersave</code>，把上面的 <code>powersave</code> 改成 <code>schedutil</code>。</p><h3 id=23-c-state-被锁死怎么办>2.3 C-State 被锁死怎么办？</h3><p>检查内核启动参数：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat /proc/cmdline
+</span></span></code></pre></td></tr></table></div></div><p>如果看到这些参数，通常会影响省电：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>intel_idle.max_cstate=1
+</span></span><span class=line><span class=cl>processor.max_cstate=1
+</span></span><span class=line><span class=cl>idle=poll
+</span></span></code></pre></td></tr></table></div></div><p>这些参数常见于为了追求极低延迟或排查死机临时加上的配置。Homelab 如果没有强实时需求，不建议长期保留。</p><p>PVE 修改 GRUB 的方式：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>nano /etc/default/grub
+</span></span><span class=line><span class=cl><span class=c1># 修改 GRUB_CMDLINE_LINUX_DEFAULT，移除限制 C-State 的参数</span>
+</span></span><span class=line><span class=cl>update-grub
+</span></span><span class=line><span class=cl>reboot
+</span></span></code></pre></td></tr></table></div></div><p>如果是 systemd-boot（常见于 ZFS root 安装），检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>proxmox-boot-tool status
+</span></span><span class=line><span class=cl>nano /etc/kernel/cmdline
+</span></span><span class=line><span class=cl>proxmox-boot-tool refresh
+</span></span><span class=line><span class=cl>reboot
+</span></span></code></pre></td></tr></table></div></div><h2 id=3-pcie-aspm低功耗的关键但也是最容易踩坑的地方>3. PCIe ASPM：低功耗的关键，但也是最容易踩坑的地方</h2><p>ASPM（Active State Power Management）用于让 PCIe 链路在空闲时进入 L0s/L1 等低功耗状态。很多小主机空载功耗降不下来，根因不是 CPU，而是某个 NVMe、网卡、SATA 控制器或 PCIe 转接设备不让链路睡觉。</p><h3 id=31-查看当前-aspm-状态>3.1 查看当前 ASPM 状态</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat /sys/module/pcie_aspm/parameters/policy
+</span></span></code></pre></td></tr></table></div></div><p>常见输出：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>[default] performance powersave powersupersave
+</span></span></code></pre></td></tr></table></div></div><p>方括号表示当前策略。也可以看具体设备链路能力：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>lspci -vv <span class=p>|</span> egrep -i <span class=s1>&#39;^[0-9a-f:.]+|LnkCap|LnkCtl|ASPM&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果 <code>LnkCap</code> 里显示支持 ASPM，但 <code>LnkCtl</code> 里是 <code>ASPM Disabled</code>，说明链路没有启用省电。</p><h3 id=32-临时启用-powersave-策略>3.2 临时启用 powersave 策略</h3><p>先临时测试，不要一上来写入启动参数：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>echo</span> powersave &gt;/sys/module/pcie_aspm/parameters/policy
+</span></span><span class=line><span class=cl>cat /sys/module/pcie_aspm/parameters/policy
+</span></span></code></pre></td></tr></table></div></div><p>然后观察 24 小时：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>journalctl -k -f <span class=p>|</span> egrep -i <span class=s1>&#39;pcie|aer|nvme|reset|timeout|link&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果出现大量 AER 报错、NVMe reset、网卡 link down/up，就说明某个设备不适合激进 ASPM。</p><h3 id=33-持久化-aspm>3.3 持久化 ASPM</h3><p>确认稳定后再写入内核参数。</p><p>GRUB：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>nano /etc/default/grub
+</span></span></code></pre></td></tr></table></div></div><p>示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>GRUB_CMDLINE_LINUX_DEFAULT</span><span class=o>=</span><span class=s>&#34;quiet pcie_aspm.policy=powersave&#34;</span>
+</span></span></code></pre></td></tr></table></div></div><p>应用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>update-grub
+</span></span><span class=line><span class=cl>reboot
+</span></span></code></pre></td></tr></table></div></div><p>systemd-boot：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>nano /etc/kernel/cmdline
+</span></span><span class=line><span class=cl><span class=c1># 在同一行追加：pcie_aspm.policy=powersave</span>
+</span></span><span class=line><span class=cl>proxmox-boot-tool refresh
+</span></span><span class=line><span class=cl>reboot
+</span></span></code></pre></td></tr></table></div></div><p>不建议一开始就使用 <code>pcie_aspm=force</code>。Red Hat 的电源管理文档也明确提醒：只有确认硬件支持 ASPM 时才应强制启用。Homelab 里很多廉价 PCIe 转 SATA、2.5G 网卡、NVMe 转接卡的固件质量参差不齐，<code>force</code> 可能换来掉盘和网络抖动。</p><h2 id=4-powertop可以用但不要无脑全自动>4. Powertop：可以用，但不要无脑全自动</h2><p><code>powertop --auto-tune</code> 会把很多 tunables 改成省电模式，包括 USB autosuspend、SATA 链路电源管理、音频省电、网卡省电等。它很有效，但也可能把某些 USB Zigbee 网关、UPS USB 线、移动硬盘盒调到不稳定。</p><h3 id=41-先生成报告>4.1 先生成报告</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>powertop --time<span class=o>=</span><span class=m>60</span> --html<span class=o>=</span>/root/powertop-after-cpu-aspm.html
+</span></span></code></pre></td></tr></table></div></div><p>打开 HTML 后看 <strong>Tunables</strong> 页面。不要急着全套启用，先识别哪些设备不能睡：</p><ul><li>Zigbee2MQTT / Z-Wave USB Dongle</li><li>UPS 的 USB HID 连接</li><li>USB 网卡、USB 硬盘盒</li><li>正在做直通的 PCIe/USB 设备</li><li>某些 Realtek 2.5G 网卡</li></ul><h3 id=42-临时执行-auto-tune>4.2 临时执行 auto-tune</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>powertop --auto-tune
+</span></span></code></pre></td></tr></table></div></div><p>执行后马上检查关键服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># USB 设备是否还在</span>
+</span></span><span class=line><span class=cl>lsusb
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 网卡是否掉线</span>
+</span></span><span class=line><span class=cl>ip link
+</span></span><span class=line><span class=cl>ethtool eno1 <span class=p>|</span> egrep <span class=s1>&#39;Speed|Duplex|Link detected&#39;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># PVE 服务是否正常</span>
+</span></span><span class=line><span class=cl>systemctl --failed
+</span></span><span class=line><span class=cl>pvesh get /cluster/resources --type vm
+</span></span></code></pre></td></tr></table></div></div><h3 id=43-排除指定-usb-设备的-autosuspend>4.3 排除指定 USB 设备的 autosuspend</h3><p>如果 Zigbee 网关或 UPS 掉线，先查 VID/PID：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>lsusb
+</span></span><span class=line><span class=cl><span class=c1># 示例：Bus 001 Device 004: ID 10c4:ea60 Silicon Labs CP210x UART Bridge</span>
+</span></span></code></pre></td></tr></table></div></div><p>创建 udev 规则，禁止该设备 autosuspend：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt;/etc/udev/rules.d/99-homelab-usb-power.rules <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s># Zigbee Coordinator / CP210x，避免 powertop 开启 autosuspend 后掉线
+</span></span></span><span class=line><span class=cl><span class=s>ACTION==&#34;add&#34;, SUBSYSTEM==&#34;usb&#34;, ATTR{idVendor}==&#34;10c4&#34;, ATTR{idProduct}==&#34;ea60&#34;, TEST==&#34;power/control&#34;, ATTR{power/control}=&#34;on&#34;
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s># UPS USB HID 示例，按你的 lsusb VID/PID 修改
+</span></span></span><span class=line><span class=cl><span class=s>ACTION==&#34;add&#34;, SUBSYSTEM==&#34;usb&#34;, ATTR{idVendor}==&#34;051d&#34;, ATTR{idProduct}==&#34;0002&#34;, TEST==&#34;power/control&#34;, ATTR{power/control}=&#34;on&#34;
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>udevadm control --reload-rules
+</span></span><span class=line><span class=cl>udevadm trigger
+</span></span></code></pre></td></tr></table></div></div><h3 id=44-持久化-powertop-auto-tune>4.4 持久化 powertop auto-tune</h3><p>确认所有服务稳定后再创建 systemd 服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt;/etc/systemd/system/powertop-autotune.service <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>[Unit]
+</span></span></span><span class=line><span class=cl><span class=s>Description=Powertop auto tune for homelab
+</span></span></span><span class=line><span class=cl><span class=s>After=multi-user.target
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>[Service]
+</span></span></span><span class=line><span class=cl><span class=s>Type=oneshot
+</span></span></span><span class=line><span class=cl><span class=s>ExecStart=/usr/sbin/powertop --auto-tune
+</span></span></span><span class=line><span class=cl><span class=s>RemainAfterExit=yes
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>[Install]
+</span></span></span><span class=line><span class=cl><span class=s>WantedBy=multi-user.target
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>systemctl daemon-reload
+</span></span><span class=line><span class=cl>systemctl <span class=nb>enable</span> --now powertop-autotune.service
+</span></span><span class=line><span class=cl>systemctl status powertop-autotune.service --no-pager
+</span></span></code></pre></td></tr></table></div></div><p>这里建议把它放在 udev 规则之后启用。即使 <code>powertop</code> 改了 USB 策略，关键设备也会被规则拉回 <code>on</code>。</p><h2 id=5-磁盘省电和寿命要平衡>5. 磁盘：省电和寿命要平衡</h2><p>Homelab 常见组合是：NVMe 跑 PVE 和虚拟机，SATA HDD 做 NAS 或备份盘。磁盘省电需要谨慎：频繁启停机械盘可能比常转更伤寿命。</p><h3 id=51-sata-链路电源管理>5.1 SATA 链路电源管理</h3><p>查看 SATA host：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=k>for</span> h in /sys/class/scsi_host/host*/link_power_management_policy<span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>  <span class=nb>echo</span> <span class=s2>&#34;</span><span class=nv>$h</span><span class=s2>: </span><span class=k>$(</span>cat <span class=nv>$h</span><span class=k>)</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><p>临时设置为中等省电：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=k>for</span> h in /sys/class/scsi_host/host*/link_power_management_policy<span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>  <span class=nb>echo</span> med_power_with_dipm &gt; <span class=s2>&#34;</span><span class=nv>$h</span><span class=s2>&#34;</span> 2&gt;/dev/null <span class=o>||</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果发现掉盘、I/O timeout，回退到：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=k>for</span> h in /sys/class/scsi_host/host*/link_power_management_policy<span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>  <span class=nb>echo</span> max_performance &gt; <span class=s2>&#34;</span><span class=nv>$h</span><span class=s2>&#34;</span> 2&gt;/dev/null <span class=o>||</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=52-hdd-是否要休眠>5.2 HDD 是否要休眠？</h3><p>对于下载盘、媒体库、备份盘，可以考虑休眠；对于 ZFS 主存储池、数据库、监控时序库，不建议频繁休眠。</p><p>查看当前电源模式：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>smartctl -n standby -a /dev/sdb
+</span></span></code></pre></td></tr></table></div></div><p>用 <code>hdparm</code> 设置 30 分钟无访问后待机：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>apt install -y hdparm
+</span></span><span class=line><span class=cl>hdparm -S <span class=m>241</span> /dev/sdb
+</span></span></code></pre></td></tr></table></div></div><p><code>-S 241</code> 表示 30 分钟。注意 <code>hdparm</code> 参数比较反直觉：1<del>240 是 5 秒为单位，241</del>251 是 30 分钟为单位。</p><p>持久化配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt;/etc/hdparm.conf <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>/dev/disk/by-id/ata-WDC_xxx {
+</span></span></span><span class=line><span class=cl><span class=s>    spindown_time = 241
+</span></span></span><span class=line><span class=cl><span class=s>    write_cache = on
+</span></span></span><span class=line><span class=cl><span class=s>}
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><p>一定要使用 <code>/dev/disk/by-id/</code>，不要写 <code>/dev/sdb</code>，因为重启后盘符可能变化。</p><h3 id=53-nvme-apst>5.3 NVMe APST</h3><p>很多 NVMe 支持 APST（Autonomous Power State Transition），能在空闲时进入低功耗状态。查看：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>nvme get-feature /dev/nvme0 -f 0x0c -H
+</span></span></code></pre></td></tr></table></div></div><p>如果遇到 NVMe 睡死、I/O timeout，可临时禁用 APST 验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># GRUB 或 systemd-boot 内核参数追加</span>
+</span></span><span class=line><span class=cl>nvme_core.default_ps_max_latency_us<span class=o>=</span><span class=m>0</span>
+</span></span></code></pre></td></tr></table></div></div><p>反过来说，如果你的机器稳定，通常不需要手工关闭 APST。低功耗调优不是参数越多越好，稳定的默认值往往更适合长期运行。</p><h2 id=6-网卡eee-能省电但也可能带来延迟毛刺>6. 网卡：EEE 能省电，但也可能带来延迟毛刺</h2><p>网卡节能主要看 EEE（Energy Efficient Ethernet）和 WOL（Wake-on-LAN）。</p><p>查看网卡：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ip -br link
+</span></span><span class=line><span class=cl>ethtool eno1
+</span></span><span class=line><span class=cl>ethtool --show-eee eno1 <span class=o>||</span> <span class=nb>true</span>
+</span></span></code></pre></td></tr></table></div></div><p>启用 EEE：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ethtool --set-eee eno1 eee on
+</span></span></code></pre></td></tr></table></div></div><p>关闭 EEE：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ethtool --set-eee eno1 eee off
+</span></span></code></pre></td></tr></table></div></div><p>我的建议：</p><div class=table-wrapper><table><thead><tr><th>场景</th><th>EEE 建议</th><th>原因</th></tr></thead><tbody><tr><td>普通管理口、低流量服务</td><td>✅ 开启</td><td>可以降低空闲功耗</td></tr><tr><td>NAS 大流量传输口</td><td>可测试</td><td>部分网卡会有吞吐波动</td></tr><tr><td>软路由 WAN/LAN</td><td>谨慎</td><td>可能引入延迟毛刺或兼容问题</td></tr><tr><td>Realtek 2.5G + 廉价交换机</td><td>先关闭</td><td>常见链路协商/断流问题</td></tr></tbody></table></div><p>持久化可以创建 systemd 服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt;/etc/systemd/system/ethtool-eee.service <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>[Unit]
+</span></span></span><span class=line><span class=cl><span class=s>Description=Configure EEE for homelab NIC
+</span></span></span><span class=line><span class=cl><span class=s>After=network-online.target
+</span></span></span><span class=line><span class=cl><span class=s>Wants=network-online.target
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>[Service]
+</span></span></span><span class=line><span class=cl><span class=s>Type=oneshot
+</span></span></span><span class=line><span class=cl><span class=s>ExecStart=/usr/sbin/ethtool --set-eee eno1 eee on
+</span></span></span><span class=line><span class=cl><span class=s>RemainAfterExit=yes
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>[Install]
+</span></span></span><span class=line><span class=cl><span class=s>WantedBy=multi-user.target
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>systemctl daemon-reload
+</span></span><span class=line><span class=cl>systemctl <span class=nb>enable</span> --now ethtool-eee.service
+</span></span></code></pre></td></tr></table></div></div><p>如果你依赖远程唤醒，检查 WOL：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ethtool eno1 <span class=p>|</span> grep Wake-on
+</span></span><span class=line><span class=cl>ethtool -s eno1 wol g
+</span></span></code></pre></td></tr></table></div></div><p>注意：有些主板在开启 ErP/Deep Sleep 后会切断网卡待机供电，导致 WOL 失效。BIOS 里的省电选项和 Linux 里的省电策略要一起验证。</p><h2 id=7-pve-虚拟机侧也要配合>7. PVE 虚拟机侧也要配合</h2><p>宿主机省电不代表 VM 可以随便跑。几个常见优化：</p><h3 id=71-给-vm-安装-qemu-guest-agent>7.1 给 VM 安装 qemu-guest-agent</h3><p>Debian/Ubuntu VM：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>apt install -y qemu-guest-agent
+</span></span><span class=line><span class=cl>systemctl <span class=nb>enable</span> --now qemu-guest-agent
+</span></span></code></pre></td></tr></table></div></div><p>PVE 里开启：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>100</span> --agent <span class=nv>enabled</span><span class=o>=</span><span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>这样 PVE 能更准确地管理关机、冻结文件系统、读取 IP，也减少某些异常状态下的资源浪费。</p><h3 id=72-避免-vm-内部高频轮询>7.2 避免 VM 内部高频轮询</h3><p>下面这些服务会让 CPU 无法长期空闲：</p><ul><li>过于频繁的 Prometheus scrape，例如 1s 抓一次</li><li>日志 debug 级别长期打开</li><li>下载器不停扫描目录</li><li>媒体库频繁生成缩略图</li><li>Windows VM 默认计划任务、索引、更新</li></ul><p>Prometheus 的 Homelab 抓取间隔通常 15s~60s 足够：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>global</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>scrape_interval</span><span class=p>:</span><span class=w> </span><span class=l>30s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>evaluation_interval</span><span class=p>:</span><span class=w> </span><span class=l>30s</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=73-windows-vm-的电源计划>7.3 Windows VM 的电源计划</h3><p>Windows 虚拟机建议选择“平衡”而不是“高性能”。如果是长期待机的下载机、办公机，关闭不必要的后台索引和自动维护：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-powershell data-lang=powershell><span class=line><span class=cl><span class=n>powercfg</span> <span class=p>/</span><span class=n>L</span>
+</span></span><span class=line><span class=cl><span class=n>powercfg</span> <span class=p>/</span><span class=n>S</span> <span class=n>SCHEME_BALANCED</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=8-一套推荐的安全调优顺序>8. 一套推荐的安全调优顺序</h2><p>不要把所有配置一次性打上去。推荐顺序：</p><div class=table-wrapper><table><thead><tr><th>顺序</th><th>动作</th><th>观察时间</th><th>回滚难度</th></tr></thead><tbody><tr><td>1</td><td>记录基线、生成 powertop 报告</td><td>10 分钟</td><td>无</td></tr><tr><td>2</td><td>CPU governor 改为 powersave/schedutil</td><td>24 小时</td><td>低</td></tr><tr><td>3</td><td>临时启用 ASPM powersave</td><td>24~48 小时</td><td>低</td></tr><tr><td>4</td><td>临时执行 powertop auto-tune</td><td>24 小时</td><td>中</td></tr><tr><td>5</td><td>排除关键 USB 设备 autosuspend</td><td>24 小时</td><td>低</td></tr><tr><td>6</td><td>持久化 systemd 服务和内核参数</td><td>长期</td><td>中</td></tr><tr><td>7</td><td>调整 HDD spindown / EEE</td><td>按设备观察</td><td>中</td></tr></tbody></table></div><p>一键检查脚本可以这样写：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt;/root/check-power-state.sh <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>#!/usr/bin/env bash
+</span></span></span><span class=line><span class=cl><span class=s>set -euo pipefail
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>echo &#34;== CPU governor ==&#34;
+</span></span></span><span class=line><span class=cl><span class=s>for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+</span></span></span><span class=line><span class=cl><span class=s>  echo &#34;$g: $(cat $g)&#34;
+</span></span></span><span class=line><span class=cl><span class=s>done | sort -V | head -8
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>echo
+</span></span></span><span class=line><span class=cl><span class=s> echo &#34;== ASPM policy ==&#34;
+</span></span></span><span class=line><span class=cl><span class=s>cat /sys/module/pcie_aspm/parameters/policy || true
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>echo
+</span></span></span><span class=line><span class=cl><span class=s> echo &#34;== SATA LPM ==&#34;
+</span></span></span><span class=line><span class=cl><span class=s>for h in /sys/class/scsi_host/host*/link_power_management_policy; do
+</span></span></span><span class=line><span class=cl><span class=s>  echo &#34;$h: $(cat $h)&#34;
+</span></span></span><span class=line><span class=cl><span class=s>done 2&gt;/dev/null || true
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>echo
+</span></span></span><span class=line><span class=cl><span class=s> echo &#34;== NIC EEE ==&#34;
+</span></span></span><span class=line><span class=cl><span class=s>for nic in $(ls /sys/class/net | grep -v lo); do
+</span></span></span><span class=line><span class=cl><span class=s>  echo &#34;-- $nic --&#34;
+</span></span></span><span class=line><span class=cl><span class=s>  ethtool --show-eee &#34;$nic&#34; 2&gt;/dev/null | egrep &#39;EEE status|Tx LPI|Supported EEE&#39; || true
+</span></span></span><span class=line><span class=cl><span class=s> done
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>echo
+</span></span></span><span class=line><span class=cl><span class=s> echo &#34;== Kernel errors in last boot ==&#34;
+</span></span></span><span class=line><span class=cl><span class=s>journalctl -k -b --no-pager | egrep -i &#39;aer|pcie|nvme|reset|timeout|link down|i/o error&#39; || true
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>chmod +x /root/check-power-state.sh
+</span></span><span class=line><span class=cl>/root/check-power-state.sh
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>如果复制脚本时发现 <code>echo</code> 前有多余空格，不影响执行；强迫症可以顺手删掉。</p></blockquote><h2 id=9-踩坑记录>9. 踩坑记录</h2><h3 id=-坑-1pcie_aspmforce-直接上生产>❌ 坑 1：<code>pcie_aspm=force</code> 直接上生产</h3><p>有些教程会建议直接加：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>pcie_aspm=force pcie_aspm.policy=powersave
+</span></span></code></pre></td></tr></table></div></div><p>这确实可能多省几瓦，但代价是不可预测。轻则日志里 AER 报错刷屏，重则 NVMe reset、SATA 控制器掉盘、2.5G 网卡断流。我的建议是：<strong>先用 <code>pcie_aspm.policy=powersave</code>，稳定后再考虑是否需要 force；绝大多数 Homelab 不值得 force。</strong></p><h3 id=-坑-2usb-autosuspend-让-zigbeeups-偶发掉线>❌ 坑 2：USB autosuspend 让 Zigbee/UPS 偶发掉线</h3><p><code>powertop --auto-tune</code> 后，Zigbee2MQTT 过几小时突然不可用，UPS NUT 也可能报通信失败。根因通常是 USB autosuspend。解决方式不是放弃 powertop，而是用 udev 规则把关键 USB 设备固定为 <code>power/control=on</code>。</p><p>排查命令：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=k>for</span> d in /sys/bus/usb/devices/*/power/control<span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>  <span class=nb>echo</span> <span class=s2>&#34;</span><span class=nv>$d</span><span class=s2>: </span><span class=k>$(</span>cat <span class=nv>$d</span><span class=k>)</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-3机械盘频繁启停>❌ 坑 3：机械盘频繁启停</h3><p>HDD spindown 看起来很美，但如果媒体库、监控、备份任务每隔几分钟访问一次磁盘，硬盘会反复启停。长期看，<code>Load_Cycle_Count</code> 飙升并不划算。</p><p>检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>smartctl -a /dev/sdb <span class=p>|</span> egrep <span class=s1>&#39;Start_Stop_Count|Load_Cycle_Count|Power_Cycle_Count|Power_On_Hours&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果一天增长几十上百次，建议延长休眠时间或干脆关闭休眠。</p><h3 id=-坑-4只看-cpu-频率不看-package-c-state>❌ 坑 4：只看 CPU 频率，不看 Package C-State</h3><p>很多人看到 CPU 频率已经降到 800MHz，就以为省电完成了。实际上，现代平台空载功耗关键在 Package C-State。一个卡在 C2 的 800MHz CPU，可能比能进 C10 的动态频率 CPU 更耗电。</p><p>验证还是用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>powertop --time<span class=o>=</span><span class=m>30</span>
+</span></span></code></pre></td></tr></table></div></div><p>看 Idle stats，而不是只看 <code>watch grep MHz /proc/cpuinfo</code>。</p><h2 id=总结>总结</h2><p>PVE Homelab 低功耗调优的核心不是“把所有省电选项都打开”，而是三句话：</p><ol><li><strong>先测量</strong>：用智能插座、powertop、sensors 建立基线。</li><li><strong>分阶段</strong>：CPU governor → ASPM → powertop → USB/磁盘/网卡逐项处理。</li><li><strong>可回滚</strong>：每个配置都知道怎么撤销，出现掉盘、断网、VM 卡顿时能快速恢复。</li></ol><p>最终推荐配置：</p><div class=table-wrapper><table><thead><tr><th>项目</th><th>推荐值</th><th>备注</th></tr></thead><tbody><tr><td>CPU governor</td><td><code>powersave</code> / <code>schedutil</code></td><td>以平台支持为准</td></tr><tr><td>C-State</td><td>不限制</td><td>移除 <code>max_cstate=1</code>、<code>idle=poll</code></td></tr><tr><td>PCIe ASPM</td><td><code>pcie_aspm.policy=powersave</code></td><td>谨慎使用 <code>force</code></td></tr><tr><td>Powertop</td><td>auto-tune + udev 排除关键 USB</td><td>不要无脑全自动</td></tr><tr><td>SATA LPM</td><td><code>med_power_with_dipm</code></td><td>掉盘就回退</td></tr><tr><td>HDD spindown</td><td>仅备份盘/冷数据盘启用</td><td>ZFS 主池不建议</td></tr><tr><td>网卡 EEE</td><td>管理口可开，软路由口谨慎</td><td>Realtek 2.5G 多观察</td></tr></tbody></table></div><p>低功耗不是玄学，也不是只靠 BIOS 里点几个选项。只要按“测量 → 修改 → 观察 → 持久化”的流程走，一台 PVE 小主机从 25W<del>35W 降到 10W</del>18W 是很现实的；更重要的是，它会更安静、更凉，也更适合真正长期运行在家里的 Homelab。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

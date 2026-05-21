@@ -1,0 +1,338 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="从零部署 Proxmox Backup Server，实现高效增量备份与全局去重。深入解析 ZFS 存储调优、备份保留策略、GC 与 Verify 自动化，以及 PVE 多节点集中备份架构。"><title>Proxmox Backup Server 完全指南：增量备份、去重与自动化策略</title><link rel=canonical href=https://shallowhave.github.io/p/proxmox-backup-server-guide/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Proxmox Backup Server 完全指南：增量备份、去重与自动化策略"><meta property='og:description' content="从零部署 Proxmox Backup Server，实现高效增量备份与全局去重。深入解析 ZFS 存储调优、备份保留策略、GC 与 Verify 自动化，以及 PVE 多节点集中备份架构。"><meta property='og:url' content='https://shallowhave.github.io/p/proxmox-backup-server-guide/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-09T01:02:55+08:00'><meta property='article:modified_time' content='2026-05-09T01:02:55+08:00'><meta name=twitter:title content="Proxmox Backup Server 完全指南：增量备份、去重与自动化策略"><meta name=twitter:description content="从零部署 Proxmox Backup Server，实现高效增量备份与全局去重。深入解析 ZFS 存储调优、备份保留策略、GC 与 Verify 自动化，以及 PVE 多节点集中备份架构。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-pbs-核心概念>1. PBS 核心概念</a><ol><li><a href=#11-增量备份--差量备份>1.1 增量备份 ≠ 差量备份</a></li><li><a href=#12-去重是全局的>1.2 去重是全局的</a></li><li><a href=#13-核心组件>1.3 核心组件</a></li></ol></li><li><a href=#2-安装部署-pbs>2. 安装部署 PBS</a><ol><li><a href=#21-安装方式对比>2.1 安装方式对比</a></li><li><a href=#22-在-pve-上创建-pbs-vm>2.2 在 PVE 上创建 PBS VM</a></li><li><a href=#23-初始化配置>2.3 初始化配置</a></li></ol></li><li><a href=#3-存储配置zfs-datastore-调优>3. 存储配置：ZFS Datastore 调优</a><ol><li><a href=#31-创建-zfs-poolpbs-vm-内部>3.1 创建 ZFS Pool（PBS VM 内部）</a></li><li><a href=#32-zfs-性能调优>3.2 ZFS 性能调优</a></li><li><a href=#33-创建-datastore>3.3 创建 Datastore</a></li></ol></li><li><a href=#4-连接-pve-到-pbs>4. 连接 PVE 到 PBS</a><ol><li><a href=#41-在-pve-上添加-pbs-存储>4.1 在 PVE 上添加 PBS 存储</a></li><li><a href=#42-创建专用备份用户可选推荐>4.2 创建专用备份用户（可选，推荐）</a></li></ol></li><li><a href=#5-备份策略设计>5. 备份策略设计</a><ol><li><a href=#51-保留策略配置>5.1 保留策略配置</a></li><li><a href=#52-在-pve-上配置备份任务>5.2 在 PVE 上配置备份任务</a></li><li><a href=#53-备份模式对比>5.3 备份模式对比</a></li></ol></li><li><a href=#6-维护操作自动化>6. 维护操作自动化</a><ol><li><a href=#61-garbage-collection垃圾回收>6.1 Garbage Collection（垃圾回收）</a></li><li><a href=#62-verify完整性校验>6.2 Verify（完整性校验）</a></li><li><a href=#63-定时任务systemd-timer>6.3 定时任务（systemd timer）</a></li></ol></li><li><a href=#7-恢复操作>7. 恢复操作</a><ol><li><a href=#71-pve-web-ui-恢复>7.1 PVE Web UI 恢复</a></li><li><a href=#72-命令行恢复>7.2 命令行恢复</a></li><li><a href=#73-单独恢复文件文件级恢复>7.3 单独恢复文件（文件级恢复）</a></li></ol></li><li><a href=#8-多节点集中备份架构>8. 多节点集中备份架构</a><ol><li><a href=#pbs-异地备份>PBS 异地备份</a></li></ol></li><li><a href=#9-踩坑记录>9. 踩坑记录</a><ol><li><a href=#-坑-1用-hdd-做-pbs-datastoregc-跑一整夜>❌ 坑 1：用 HDD 做 PBS Datastore，GC 跑一整夜</a></li><li><a href=#-坑-2zfs-recordsize128k-导致写放大>❌ 坑 2：ZFS recordsize=128K 导致写放大</a></li><li><a href=#-坑-3忘记定期-verify备份悄悄损坏>❌ 坑 3：忘记定期 Verify，备份悄悄损坏</a></li><li><a href=#-坑-4prune-后空间没回收>❌ 坑 4：Prune 后空间没回收</a></li></ol></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/proxmox-backup-server-guide/>Proxmox Backup Server 完全指南：增量备份、去重与自动化策略</a></h2><h3 class=article-subtitle>从零部署 Proxmox Backup Server，实现高效增量备份与全局去重。深入解析 ZFS 存储调优、备份保留策略、GC 与 Verify 自动化，以及 PVE 多节点集中备份架构。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 09, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 8 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>玩 Homelab 最怕什么？不是硬件挂了，是<strong>数据没了</strong>。</p><p>Proxmox VE 自带的 <code>vzdump</code> 虽然能用，但每次都是全量备份、没有去重、远程同步靠 NFS/CIFS。一旦虚拟机多了，备份窗口拉得越来越长，存储空间也直线上升。更扎心的是——你上一次验证备份能不能恢复，是什么时候？</p><p>Proxmox Backup Server（以下简称 PBS）正是为解决这些问题而生的。它基于 Rust 重写的底层引擎，提供<strong>增量备份、客户端去重、加密传输、定时验证</strong>等企业级功能，而且完全免费。</p><p>本文从零开始，涵盖 PBS 的安装部署、ZFS 存储调优、备份策略设计、Garbage Collection 与 Verify 自动化，以及多节点 PVE 集中备份架构。所有命令均可直接复制执行。</p><hr><h2 id=1-pbs-核心概念>1. PBS 核心概念</h2><p>在动手之前，先理解 PBS 的几个关键设计。</p><h3 id=11-增量备份--差量备份>1.1 增量备份 ≠ 差量备份</h3><p>PBS 用的是 <strong>chunk-level 增量备份</strong>。每次备份时，客户端（PVE）将虚拟磁盘按 4MB 块切割，计算每个块的 SHA256 哈希值，发送到服务端。服务端检查该块是否已存在——存在就跳过，不存在就压缩存储。所以：</p><ul><li><strong>首次备份</strong> = 全量（慢）</li><li><strong>后续备份</strong> = 只传输变化的块（极快）</li><li><strong>每个快照都可独立恢复</strong>（不需要依赖前一个备份）</li></ul><h3 id=12-去重是全局的>1.2 去重是全局的</h3><p>PBS 的去重不是按 VM 计算的，而是<strong>跨所有 VM 共享同一个 chunk 索引</strong>。假设你有 10 个 Ubuntu 22.04 VM，它们的系统盘里大量相同的文件会产生完全相同的 chunk，PBS 只存储一份。</p><p>实际测试中，同类 OS 的 VM 可以达到 <strong>3-5 倍的存储节省</strong>。</p><h3 id=13-核心组件>1.3 核心组件</h3><div class=table-wrapper><table><thead><tr><th>组件</th><th>作用</th></tr></thead><tbody><tr><td><strong>Datastore</strong></td><td>存储备份数据的位置，一个目录对应一个 datastore</td></tr><tr><td><strong>Chunk Store</strong></td><td>实际存放去重后的数据块（<code>.chunks/</code> 目录）</td></tr><tr><td><strong>Namespace</strong></td><td>逻辑隔离（PBS 3.0+），不同业务可用不同 namespace</td></tr><tr><td><strong>Garbage Collection</strong></td><td>清理未引用的 chunk，回收空间</td></tr><tr><td><strong>Verify</strong></td><td>定期验证备份数据完整性（读取每个 chunk 并校验哈希）</td></tr></tbody></table></div><hr><h2 id=2-安装部署-pbs>2. 安装部署 PBS</h2><h3 id=21-安装方式对比>2.1 安装方式对比</h3><div class=table-wrapper><table><thead><tr><th>方式</th><th>优点</th><th>缺点</th><th>推荐场景</th></tr></thead><tbody><tr><td><strong>ISO 裸机安装</strong></td><td>性能最佳，独立管理</td><td>需要独立物理机</td><td>生产环境</td></tr><tr><td><strong>PVE VM 安装</strong></td><td>灵活，快照/迁移方便</td><td>略损耗性能</td><td>✅ Homelab 首选</td></tr><tr><td><strong>LXC 安装</strong></td><td>轻量，共享内核</td><td>官方不建议</td><td>测试环境</td></tr></tbody></table></div><h3 id=22-在-pve-上创建-pbs-vm>2.2 在 PVE 上创建 PBS VM</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 下载 PBS ISO（在 PVE 宿主机操作）</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /var/lib/vz/template/iso/
+</span></span><span class=line><span class=cl>wget https://enterprise.proxmox.com/iso/proxmox-backup-server_3.3-1.iso
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 创建虚拟机</span>
+</span></span><span class=line><span class=cl>qm create <span class=m>200</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --name pbs <span class=se>\
+</span></span></span><span class=line><span class=cl>  --memory <span class=m>4096</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --cores <span class=m>4</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --net0 virtio,bridge<span class=o>=</span>vmbr0 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --scsihw virtio-scsi-single <span class=se>\
+</span></span></span><span class=line><span class=cl>  --boot <span class=nv>order</span><span class=o>=</span>scsi0
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. 添加系统盘</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>200</span> --scsi0 local-lvm:32,ssd<span class=o>=</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 4. 添加备份存储盘（建议独立 SSD）</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>200</span> --scsi1 local-lvm:256,ssd<span class=o>=</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 5. 挂载 ISO 并启动</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>200</span> --ide2 local:iso/proxmox-backup-server_3.3-1.iso,media<span class=o>=</span>cdrom
+</span></span><span class=line><span class=cl>qm start <span class=m>200</span>
+</span></span></code></pre></td></tr></table></div></div><p>系统盘 32GB 足够，备份数据盘根据实际需求分配。如果 PVE 宿主机用的是 ZFS，可以在宿主机上先创建 dataset 再直通给 VM（性能更好但配置稍复杂）。</p><h3 id=23-初始化配置>2.3 初始化配置</h3><p>安装完成后，通过浏览器访问 <code>https://&lt;PBS-IP>:8007</code>，使用 <code>root</code> 和安装时设置的密码登录。</p><p>首先获取订阅密钥（免费版）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># SSH 到 PBS</span>
+</span></span><span class=line><span class=cl>ssh root@&lt;PBS-IP&gt;
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 注册产品（免费版即可用全部功能）</span>
+</span></span><span class=line><span class=cl>pbsubscription <span class=nb>set</span> standard
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>⚠️ <strong>注意</strong>：不注册也可以正常使用，只是每次登录会弹提示。免费版不限制备份数量和节点数。</p></blockquote><hr><h2 id=3-存储配置zfs-datastore-调优>3. 存储配置：ZFS Datastore 调优</h2><p>PBS 对存储延迟敏感，强烈建议用 SSD。实测中，HDD 做 PBS datastore 时 GC 速度慢 5-10 倍。</p><h3 id=31-创建-zfs-poolpbs-vm-内部>3.1 创建 ZFS Pool（PBS VM 内部）</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 查看可用磁盘</span>
+</span></span><span class=line><span class=cl>lsblk
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 创建 ZFS pool（假设备份盘是 /dev/sdb）</span>
+</span></span><span class=line><span class=cl>zpool create -o <span class=nv>ashift</span><span class=o>=</span><span class=m>12</span> pbsdata /dev/sdb
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 创建 dataset 作为 datastore 目录</span>
+</span></span><span class=line><span class=cl>zfs create -o <span class=nv>mountpoint</span><span class=o>=</span>/mnt/pbs pbsdata/datastore
+</span></span></code></pre></td></tr></table></div></div><h3 id=32-zfs-性能调优>3.2 ZFS 性能调优</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 压缩：lz4 速度快，对备份数据压缩率也不错</span>
+</span></span><span class=line><span class=cl>zfs <span class=nb>set</span> <span class=nv>compression</span><span class=o>=</span>lz4 pbsdata/datastore
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 关闭 atime：避免每次读取都产生写操作</span>
+</span></span><span class=line><span class=cl>zfs <span class=nb>set</span> <span class=nv>atime</span><span class=o>=</span>off pbsdata/datastore
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># recordsize：PBS chunk 大小是 4MB，用 1M 对齐</span>
+</span></span><span class=line><span class=cl>zfs <span class=nb>set</span> <span class=nv>recordsize</span><span class=o>=</span>1M pbsdata/datastore
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># xattr=sa：减少元数据碎片</span>
+</span></span><span class=line><span class=cl>zfs <span class=nb>set</span> <span class=nv>xattr</span><span class=o>=</span>sa pbsdata/datastore
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 关闭冗余去重（PBS 自己有去重，ZFS dedup 会吃大量内存）</span>
+</span></span><span class=line><span class=cl>zfs <span class=nb>set</span> <span class=nv>dedup</span><span class=o>=</span>off pbsdata/datastore
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>🏆 <strong>关键优化</strong>：<code>recordsize=1M</code> 是 PBS 在 ZFS 上最重要的调优参数。PBS 写入单个 chunk 大小为 1-4MB，recordsize 设为 1M 可以显著减少写放大和碎片。</p></blockquote><h3 id=33-创建-datastore>3.3 创建 Datastore</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在 PBS Web UI 或命令行创建</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager datastore create main /mnt/pbs
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看 datastore 信息</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager datastore list
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=4-连接-pve-到-pbs>4. 连接 PVE 到 PBS</h2><h3 id=41-在-pve-上添加-pbs-存储>4.1 在 PVE 上添加 PBS 存储</h3><p>在 PVE Web UI：<strong>数据中心 → 存储 → 添加 → Proxmox Backup Server</strong></p><div class=table-wrapper><table><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>ID</td><td><code>pbs-main</code></td></tr><tr><td>服务器</td><td><code>&lt;PBS-IP></code></td></tr><tr><td>用户名</td><td><code>root@pam</code></td></tr><tr><td>密码</td><td><code>&lt;PBS root 密码></code></td></tr><tr><td>Datastore</td><td><code>main</code></td></tr><tr><td>指纹</td><td>PBS 仪表盘 → 显示指纹 获取</td></tr></tbody></table></div><p>或者命令行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvesm add pbs pbs-main <span class=se>\
+</span></span></span><span class=line><span class=cl>  --server &lt;PBS-IP&gt; <span class=se>\
+</span></span></span><span class=line><span class=cl>  --datastore main <span class=se>\
+</span></span></span><span class=line><span class=cl>  --username root@pam <span class=se>\
+</span></span></span><span class=line><span class=cl>  --password <span class=s1>&#39;&lt;password&gt;&#39;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --fingerprint <span class=s1>&#39;&lt;SHA256-fingerprint&gt;&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=42-创建专用备份用户可选推荐>4.2 创建专用备份用户（可选，推荐）</h3><p>不建议用 root 做日常备份。在 PBS 上创建专用账户：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在 PBS 上执行</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager user create backup-user@pbs --password <span class=s1>&#39;&lt;secure-password&gt;&#39;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 授予权限</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager acl update /datastore/main backup-user@pbs --roles DatastoreBackup,DatastoreReader
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=5-备份策略设计>5. 备份策略设计</h2><h3 id=51-保留策略配置>5.1 保留策略配置</h3><p>PBS 的留存策略在 Datastore 级别设置，影响该 datastore 下所有备份。</p><p>推荐 Homelab 场景配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>proxmox-backup-manager datastore update main <span class=se>\
+</span></span></span><span class=line><span class=cl>  --prune-schedule <span class=s1>&#39;daily&#39;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --keep-last <span class=m>7</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --keep-daily <span class=m>7</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --keep-weekly <span class=m>4</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --keep-monthly <span class=m>3</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --keep-yearly <span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><div class=table-wrapper><table><thead><tr><th>参数</th><th>含义</th><th>Homelab 推荐</th></tr></thead><tbody><tr><td><code>keep-last</code></td><td>保留最近 N 个快照</td><td>7</td></tr><tr><td><code>keep-daily</code></td><td>保留每日备份数</td><td>7</td></tr><tr><td><code>keep-weekly</code></td><td>保留每周备份数</td><td>4</td></tr><tr><td><code>keep-monthly</code></td><td>保留每月备份数</td><td>3</td></tr><tr><td><code>keep-yearly</code></td><td>保留每年备份数</td><td>1</td></tr></tbody></table></div><p>这样设计，你总能恢复到过去 7 天内的任意时间点、过去 4 周的每周快照，以及过去 3 个月的月末状态。</p><h3 id=52-在-pve-上配置备份任务>5.2 在 PVE 上配置备份任务</h3><p>在 PVE Web UI：<strong>数据中心 → 备份 → 添加</strong></p><p>或命令行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 单个 VM 备份</span>
+</span></span><span class=line><span class=cl>vzdump <span class=m>100</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --storage pbs-main <span class=se>\
+</span></span></span><span class=line><span class=cl>  --mode snapshot <span class=se>\
+</span></span></span><span class=line><span class=cl>  --compress zstd <span class=se>\
+</span></span></span><span class=line><span class=cl>  --remove <span class=m>0</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --notes-template <span class=s2>&#34;{{guestname}} - 每日自动备份&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 创建定时任务（每天凌晨 2 点）</span>
+</span></span><span class=line><span class=cl>cat &gt; /etc/cron.d/pbs-backup <span class=s>&lt;&lt; &#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>0 2 * * * root vzdump 100 101 102 --storage pbs-main --mode snapshot --compress zstd --quiet 1 --mailnotification failure
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><p>也可以在 PVE Web UI 中设置备份计划，更直观。</p><h3 id=53-备份模式对比>5.3 备份模式对比</h3><div class=table-wrapper><table><thead><tr><th>模式</th><th>适用场景</th><th>热备份</th><th>一致性</th></tr></thead><tbody><tr><td><code>snapshot</code></td><td>✅ KVM/VM 首选</td><td>是</td><td>一致性快照</td></tr><tr><td><code>suspend</code></td><td>对停机敏感的 VM</td><td>短暂暂停</td><td>内存 + 磁盘</td></tr><tr><td><code>stop</code></td><td>数据库类 VM</td><td>完全停机</td><td>最一致</td></tr></tbody></table></div><blockquote><p>对于 MySQL/PostgreSQL 等数据库，snapshot 模式会创建一致性快照（通过 QEMU guest agent），通常足够。但如果对数据一致性要求极高，建议搭配数据库原生备份工具先做 dump，再备份 dump 文件。</p></blockquote><hr><h2 id=6-维护操作自动化>6. 维护操作自动化</h2><p>备份存进去了，不代表就高枕无忧。PBS 还需要定期执行两项关键维护。</p><h3 id=61-garbage-collection垃圾回收>6.1 Garbage Collection（垃圾回收）</h3><p>当备份快照被 Prune 删除后，对应的 chunk 并不会立刻释放空间。GC 扫描所有索引，标记仍在使用的 chunk，删除无人引用的孤立 chunk。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 手动执行 GC</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager garbage-collection start main
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看 GC 状态</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager garbage-collection status
+</span></span></code></pre></td></tr></table></div></div><h3 id=62-verify完整性校验>6.2 Verify（完整性校验）</h3><p>验证操作会读取所有备份 chunk，重新计算哈希与元数据对比，确保数据没有静默损坏。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 校验最新快照</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager verify main
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 全量校验所有快照（慢但彻底）</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager verify main --all-versions
+</span></span></code></pre></td></tr></table></div></div><h3 id=63-定时任务systemd-timer>6.3 定时任务（systemd timer）</h3><p>PBS 自带 systemd timer，建议直接使用，不用自己写 cron：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 查看当前 GC 和 Prune 定时器状态</span>
+</span></span><span class=line><span class=cl>systemctl list-timers proxmox-backup-*
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 编辑 GC 调度（默认每天 02:30）</span>
+</span></span><span class=line><span class=cl>systemctl edit proxmox-backup-gc.timer
+</span></span><span class=line><span class=cl><span class=c1># 内容如下：</span>
+</span></span><span class=line><span class=cl><span class=o>[</span>Timer<span class=o>]</span>
+</span></span><span class=line><span class=cl><span class=nv>OnCalendar</span><span class=o>=</span>*-*-* 03:30:00
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 编辑 Verify 调度（默认每周日）</span>
+</span></span><span class=line><span class=cl>systemctl edit proxmox-backup-verify.timer
+</span></span><span class=line><span class=cl><span class=o>[</span>Timer<span class=o>]</span>
+</span></span><span class=line><span class=cl><span class=nv>OnCalendar</span><span class=o>=</span>Sun 05:00:00
+</span></span></code></pre></td></tr></table></div></div><p>建议调度顺序：<strong>Prune（删除过期快照）→ GC（回收空间）→ Verify（校验剩余数据）</strong>，三者间隔至少 1 小时。</p><hr><h2 id=7-恢复操作>7. 恢复操作</h2><p>备份的终极目的是恢复。PBS 的恢复体验非常好。</p><h3 id=71-pve-web-ui-恢复>7.1 PVE Web UI 恢复</h3><p><strong>VM → 备份 → 选择快照 → 还原</strong>，全程图形化操作。可以恢复到原来的 VM（覆盖）或创建新 VM。</p><h3 id=72-命令行恢复>7.2 命令行恢复</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 列出 VM 100 的可用备份</span>
+</span></span><span class=line><span class=cl>proxmox-backup-client snapshot list <span class=se>\
+</span></span></span><span class=line><span class=cl>  --repository root@pam@&lt;PBS-IP&gt;:main <span class=se>\
+</span></span></span><span class=line><span class=cl>  host/&lt;PVE-HOSTNAME&gt; --ns vm/100
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 恢复 VM 磁盘到指定路径</span>
+</span></span><span class=line><span class=cl>proxmox-backup-client restore <span class=se>\
+</span></span></span><span class=line><span class=cl>  vm/100/2026-05-08T02:00:00Z drive-scsi0.img <span class=se>\
+</span></span></span><span class=line><span class=cl>  /var/lib/vz/images/100/vm-100-disk-0.raw <span class=se>\
+</span></span></span><span class=line><span class=cl>  --repository root@pam@&lt;PBS-IP&gt;:main
+</span></span></code></pre></td></tr></table></div></div><h3 id=73-单独恢复文件文件级恢复>7.3 单独恢复文件（文件级恢复）</h3><p>PBS 支持从 VM 备份中单独提取文件，不需要恢复整个磁盘：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 映射备份快照为块设备（在 PVE 宿主机上）</span>
+</span></span><span class=line><span class=cl>proxmox-backup-client map <span class=se>\
+</span></span></span><span class=line><span class=cl>  vm/100/2026-05-08T02:00:00Z drive-scsi0.img <span class=se>\
+</span></span></span><span class=line><span class=cl>  --repository root@pam@&lt;PBS-IP&gt;:main
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 挂载映射的设备</span>
+</span></span><span class=line><span class=cl>mount /dev/loop0p1 /mnt/recovery
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 复制需要的文件</span>
+</span></span><span class=line><span class=cl>cp /mnt/recovery/var/lib/mysql/xxx.sql /tmp/
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 卸载并取消映射</span>
+</span></span><span class=line><span class=cl>umount /mnt/recovery
+</span></span><span class=line><span class=cl>proxmox-backup-client unmap /dev/loop0
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=8-多节点集中备份架构>8. 多节点集中备份架构</h2><p>如果你有多台 PVE 主机，不需要每台都部署 PBS。一个 PBS 实例可以同时为多个 PVE 节点服务。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>  PVE-Node-1 ──┐
+</span></span><span class=line><span class=cl>  PVE-Node-2 ──┼── 10GbE Switch ── PBS (Datastore: main)
+</span></span><span class=line><span class=cl>  PVE-Node-3 ──┘
+</span></span></code></pre></td></tr></table></div></div><p>建议：</p><ul><li>PBS 和数据盘部署在一台独立机器上（或 PVE 集群外的 VM）</li><li>为不同节点使用 <strong>namespace</strong> 隔离（PBS 3.0+）：</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 为不同 PVE 节点创建独立命名空间</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager datastore create-namespace main node1
+</span></span><span class=line><span class=cl>proxmox-backup-manager datastore create-namespace main node2
+</span></span><span class=line><span class=cl>proxmox-backup-manager datastore create-namespace main node3
+</span></span></code></pre></td></tr></table></div></div><p>然后在各 PVE 节点的存储配置中指定对应 namespace。</p><h3 id=pbs-异地备份>PBS 异地备份</h3><p>即使有 PBS，异地容灾仍然重要。可以用 PBS 的 <strong>Remote Sync</strong> 功能或直接同步 datastore：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># PBS 远程同步（需要两台 PBS）</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager remote create backup-remote <span class=se>\
+</span></span></span><span class=line><span class=cl>  --host &lt;remote-pbs-ip&gt; <span class=se>\
+</span></span></span><span class=line><span class=cl>  --user root@pam <span class=se>\
+</span></span></span><span class=line><span class=cl>  --password <span class=s1>&#39;&lt;password&gt;&#39;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --fingerprint <span class=s1>&#39;&lt;fingerprint&gt;&#39;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 创建同步任务</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager sync-job create <span class=se>\
+</span></span></span><span class=line><span class=cl>  --remote backup-remote <span class=se>\
+</span></span></span><span class=line><span class=cl>  --remote-datastore main <span class=se>\
+</span></span></span><span class=line><span class=cl>  --local-datastore main <span class=se>\
+</span></span></span><span class=line><span class=cl>  --schedule <span class=s1>&#39;daily&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>💡 Homelab 异地方案：如果只有一台 PBS，可以用 <code>rclone</code> 把 datastore 目录同步到云存储（Backblaze B2、阿里云 OSS 等），便宜又省心。</p></blockquote><hr><h2 id=9-踩坑记录>9. 踩坑记录</h2><h3 id=-坑-1用-hdd-做-pbs-datastoregc-跑一整夜>❌ 坑 1：用 HDD 做 PBS Datastore，GC 跑一整夜</h3><p>PBS 的 GC 操作会产生大量随机 I/O（遍历 chunk 索引 + 删除孤立 chunk），HDD 的 IOPS 完全不够。</p><p><strong>现象</strong>：<code>pbs-gc.service</code> 运行超过 6 小时，期间备份任务被阻塞。</p><p><strong>修复</strong>：将 datastore 迁移到 SSD。至少 $GCTMPDIR 指向 SSD（PBS 3.1+ 支持）。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># PBS 3.1+: 将 GC 临时目录放到 SSD</span>
+</span></span><span class=line><span class=cl>mkdir -p /mnt/ssd/gc-tmp
+</span></span><span class=line><span class=cl>proxmox-backup-manager datastore update main --gc-tmpdir /mnt/ssd/gc-tmp
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-2zfs-recordsize128k-导致写放大>❌ 坑 2：ZFS recordsize=128K 导致写放大</h3><p>默认的 ZFS recordsize 是 128KB，但 PBS 的 chunk 大小在 1-4MB。128K 的 record 意味着一个 chunk 被拆成几十个 ZFS 记录，产生大量碎片和写放大。</p><p><strong>修复</strong>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>zfs <span class=nb>set</span> <span class=nv>recordsize</span><span class=o>=</span>1M pbsdata/datastore
+</span></span></code></pre></td></tr></table></div></div><p>已存在的数据需要重写才能生效，建议创建 dataset 时就设置好。</p><h3 id=-坑-3忘记定期-verify备份悄悄损坏>❌ 坑 3：忘记定期 Verify，备份悄悄损坏</h3><p>备份写进去了不等于就安全了。磁盘的静默数据损坏（bit rot）在 ZFS 上通常能被检测，但如果你用了 ext4/xfs 做 PBS datastore，静默损坏会一直累积。</p><p><strong>修复</strong>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 开启自动 verify（每月一次全身检查）</span>
+</span></span><span class=line><span class=cl>systemctl edit proxmox-backup-verify.timer
+</span></span></code></pre></td></tr></table></div></div><p>同时，PBS datastore 底层文件系统<strong>强烈建议用 ZFS</strong>（自带校验和），ext4 是在冒险。</p><h3 id=-坑-4prune-后空间没回收>❌ 坑 4：Prune 后空间没回收</h3><p>Prune 删除过期快照后，你会发现磁盘空间没有立刻释放。这是因为 GC 还没跑。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 手动触发 GC 回收空间</span>
+</span></span><span class=line><span class=cl>proxmox-backup-manager garbage-collection start main
+</span></span></code></pre></td></tr></table></div></div><p>Prune → GC 的时间差是设计如此，不是 bug。确保 GC timer 正常工作即可。</p><hr><h2 id=总结>总结</h2><p>PBS 是 Proxmox VE 生态中最被低估的组件。它在 Homelab 场景下几乎是零成本的生产级备份方案。</p><div class=table-wrapper><table><thead><tr><th>维度</th><th>结论</th></tr></thead><tbody><tr><td>✅ 推荐场景</td><td>所有 PVE Homelab（即便只有单节点）</td></tr><tr><td>✅ 存储方案</td><td>ZFS + SSD + recordsize=1M</td></tr><tr><td>✅ 备份策略</td><td>daily snapshot + keep-last 7 + keep-weekly 4 + keep-monthly 3</td></tr><tr><td>✅ 自动化</td><td>Prune → GC → Verify 顺序执行，使用 systemd timer</td></tr><tr><td>⚠️ 注意事项</td><td>HDD 只适合存冷数据，活跃 datastore 务必 SSD</td></tr><tr><td>🔗 关联阅读</td><td><a class=link href=/p/traefik-reverse-proxy-homelab/>Traefik 反向代理</a> · <a class=link href=/p/proxmox-zfs-storage-guide/>ZFS 存储配置</a> · <a class=link href=/p/homelab-monitoring-stack-guide/>监控告警</a></td></tr></tbody></table></div><p>备份不是「一次性设置」的东西——它需要持续的验证、清理和监控。好消息是，PBS 让这些工作变得异常简单。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

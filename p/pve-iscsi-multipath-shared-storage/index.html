@@ -1,0 +1,320 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Homelab 中把 NAS/SAN 通过 iSCSI 接入 Proxmox VE，并用 multipath 做链路冗余，再在多路径设备上创建 LVM/LVM-Thin 存储池，实现虚拟机磁盘集中管理和节点间迁移。"><title>PVE 共享存储进阶：用 iSCSI + Multipath 搭一套可迁移、不断链的 Homelab 存储底座</title><link rel=canonical href=https://shallowhave.github.io/p/pve-iscsi-multipath-shared-storage/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="PVE 共享存储进阶：用 iSCSI + Multipath 搭一套可迁移、不断链的 Homelab 存储底座"><meta property='og:description' content="在 Homelab 中把 NAS/SAN 通过 iSCSI 接入 Proxmox VE，并用 multipath 做链路冗余，再在多路径设备上创建 LVM/LVM-Thin 存储池，实现虚拟机磁盘集中管理和节点间迁移。"><meta property='og:url' content='https://shallowhave.github.io/p/pve-iscsi-multipath-shared-storage/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-20T01:01:23+08:00'><meta property='article:modified_time' content='2026-05-20T01:01:23+08:00'><meta name=twitter:title content="PVE 共享存储进阶：用 iSCSI + Multipath 搭一套可迁移、不断链的 Homelab 存储底座"><meta name=twitter:description content="在 Homelab 中把 NAS/SAN 通过 iSCSI 接入 Proxmox VE，并用 multipath 做链路冗余，再在多路径设备上创建 LVM/LVM-Thin 存储池，实现虚拟机磁盘集中管理和节点间迁移。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-方案对比nfsiscsiceph-到底怎么选>1. 方案对比：NFS、iSCSI、Ceph 到底怎么选？</a></li><li><a href=#2-拓扑规划先把存储网络隔离出来>2. 拓扑规划：先把存储网络隔离出来</a></li><li><a href=#3-nas-侧创建-iscsi-target-和-lun>3. NAS 侧：创建 iSCSI Target 和 LUN</a></li><li><a href=#4-pve-侧配置-multipath-聚合链路>4. PVE 侧：配置 multipath 聚合链路</a></li><li><a href=#5-在-multipath-设备上创建-lvm--lvm-thin>5. 在 multipath 设备上创建 LVM / LVM-Thin</a><ol><li><a href=#51-方案-a普通-lvm更稳适合多节点共享>5.1 方案 A：普通 LVM（更稳，适合多节点共享）</a></li><li><a href=#52-方案-blvm-thin省空间但要更严格监控>5.2 方案 B：LVM-Thin（省空间，但要更严格监控）</a></li></ol></li><li><a href=#6-pve-集群里的关键细节>6. PVE 集群里的关键细节</a><ol><li><a href=#61-所有节点都要看到同一个-multipath-alias>6.1 所有节点都要看到同一个 multipath alias</a></li><li><a href=#62-shared-1-不是魔法高可用>6.2 <code>shared 1</code> 不是魔法高可用</a></li><li><a href=#63-迁移测试>6.3 迁移测试</a></li></ol></li><li><a href=#7-性能测试不要只看顺序读写>7. 性能测试：不要只看顺序读写</a></li><li><a href=#8-踩坑记录>8. 踩坑记录</a><ol><li><a href=#-坑-1对-devsdb-初始化重启后设备名变了>❌ 坑 1：对 <code>/dev/sdb</code> 初始化，重启后设备名变了</a></li><li><a href=#-坑-2nas-上开了稀疏-lunpve-又开-lvm-thin结果空间被写爆>❌ 坑 2：NAS 上开了稀疏 LUN，PVE 又开 LVM-Thin，结果空间被写爆</a></li><li><a href=#-坑-3所有路径都断开后vm-卡死很久>❌ 坑 3：所有路径都断开后，VM 卡死很久</a></li><li><a href=#-坑-4jumbo-frame-只改了一端>❌ 坑 4：Jumbo Frame 只改了一端</a></li></ol></li><li><a href=#9-我的推荐配置>9. 我的推荐配置</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/pve-iscsi-multipath-shared-storage/>PVE 共享存储进阶：用 iSCSI + Multipath 搭一套可迁移、不断链的 Homelab 存储底座</a></h2><h3 class=article-subtitle>在 Homelab 中把 NAS/SAN 通过 iSCSI 接入 Proxmox VE，并用 multipath 做链路冗余，再在多路径设备上创建 LVM/LVM-Thin 存储池，实现虚拟机磁盘集中管理和节点间迁移。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 20, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 9 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>Homelab 里的 PVE 节点越跑越多以后，最先暴露的问题通常不是 CPU 不够，而是 <strong>虚拟机磁盘被绑死在某一台机器上</strong>：A 节点的 NVMe 很快，但机器要关机清灰；B 节点还有空闲资源，却因为磁盘不在本地而不能直接迁移。PBS 能解决备份恢复，但它不是在线共享存储；NFS 配置简单，但随机写延迟和文件锁在高 IO 场景下不一定舒服。</p><p>这篇文章记录一套更偏“准生产”的 Homelab 存储方案：<strong>NAS/SAN 导出 iSCSI LUN，PVE 节点通过多张网卡访问，宿主机用 <code>multipath-tools</code> 聚合多条链路，然后在 multipath 设备上创建 LVM 或 LVM-Thin，最后交给 Proxmox VE 管理 VM 磁盘</strong>。</p><p>它适合这些场景：</p><ul><li>有 2 台以上 PVE 节点，希望 VM 磁盘可以随节点迁移；</li><li>NAS 或存储服务器有双网口/多网口，想避免单根网线或单个交换机端口故障；</li><li>不想上 Ceph，但又希望比单机本地盘更灵活；</li><li>能接受“共享块存储需要更谨慎操作”的复杂度。</li></ul><blockquote><p>先说结论：Homelab 里最省心的顺序是 <strong>单节点本地 ZFS → NFS 共享 → iSCSI 单路径 → iSCSI Multipath + LVM</strong>。不要为了“看起来高级”直接跳到最后一档，除非你真的需要在线迁移和链路冗余。</p></blockquote><h2 id=1-方案对比nfsiscsiceph-到底怎么选>1. 方案对比：NFS、iSCSI、Ceph 到底怎么选？</h2><div class=table-wrapper><table><thead><tr><th>方案</th><th>优点</th><th>缺点</th><th>适合场景</th></tr></thead><tbody><tr><td>本地 ZFS / LVM-Thin</td><td>延迟低、简单、故障域清晰 ✅</td><td>VM 磁盘绑定节点，迁移依赖备份/复制</td><td>单节点或性能优先</td></tr><tr><td>NFS</td><td>配置简单、文件级管理、快照友好 ✅</td><td>小 IO 延迟偏高，强依赖 NAS 稳定性</td><td>ISO、备份、轻负载 VM</td></tr><tr><td>iSCSI 单路径</td><td>块设备语义，性能通常比 NFS 稳</td><td>单链路故障会直接影响 VM</td><td>单节点接 NAS，链路可靠</td></tr><tr><td>iSCSI + Multipath</td><td>多链路冗余，适合 PVE 集群 🏆</td><td>配置复杂，误操作可能影响所有节点</td><td>多节点共享块存储</td></tr><tr><td>Ceph</td><td>分布式、高可用、PVE 原生集成</td><td>至少 3 节点，内存/网络/磁盘要求高</td><td>真正集群化 Homelab</td></tr></tbody></table></div><p>需要注意：<strong>iSCSI 只是把远端 LUN 暴露成块设备</strong>，它本身不懂“文件系统共享”。如果多个 PVE 节点同时把同一个普通文件系统挂起来，基本就是数据损坏倒计时。正确姿势是：把 iSCSI LUN 交给 PVE 的 LVM/LVM-Thin 存储插件，或者使用支持集群语义的文件系统/存储管理层。</p><h2 id=2-拓扑规划先把存储网络隔离出来>2. 拓扑规划：先把存储网络隔离出来</h2><p>示例环境：</p><div class=table-wrapper><table><thead><tr><th>角色</th><th>管理网</th><th>iSCSI-A</th><th>iSCSI-B</th><th>说明</th></tr></thead><tbody><tr><td>PVE-1</td><td><code>192.168.10.11</code></td><td><code>10.10.10.11</code></td><td><code>10.10.20.11</code></td><td>双路径访问 LUN</td></tr><tr><td>PVE-2</td><td><code>192.168.10.12</code></td><td><code>10.10.10.12</code></td><td><code>10.10.20.12</code></td><td>双路径访问 LUN</td></tr><tr><td>NAS/SAN</td><td><code>192.168.10.20</code></td><td><code>10.10.10.20</code></td><td><code>10.10.20.20</code></td><td>导出同一个 iSCSI target</td></tr></tbody></table></div><p>建议：</p><ol><li>iSCSI 流量和管理网分开，不要和公网反代、下载、监控共用同一个 VLAN；</li><li>有条件就两张独立网卡、两个独立交换机；没条件至少两个 VLAN；</li><li>MTU 先用 1500，稳定后再考虑 9000 Jumbo Frame；</li><li>每个 PVE 节点看到的 LUN 必须是同一个 WWID，否则 multipath 无法正确聚合。</li></ol><p>PVE 上可以这样配置两个存储网口（示例为 <code>/etc/network/interfaces</code> 片段）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>auto enp3s0</span>
+</span></span><span class=line><span class=cl><span class=na>iface enp3s0 inet static</span>
+</span></span><span class=line><span class=cl>    <span class=na>address 10.10.10.11/24</span>
+</span></span><span class=line><span class=cl>    <span class=na>mtu 1500</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=na>auto enp4s0</span>
+</span></span><span class=line><span class=cl><span class=na>iface enp4s0 inet static</span>
+</span></span><span class=line><span class=cl>    <span class=na>address 10.10.20.11/24</span>
+</span></span><span class=line><span class=cl>    <span class=na>mtu 1500</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果你使用 VLAN，则可以挂在 Linux bridge 或物理网卡子接口上：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>auto enp3s0.110</span>
+</span></span><span class=line><span class=cl><span class=na>iface enp3s0.110 inet static</span>
+</span></span><span class=line><span class=cl>    <span class=na>address 10.10.10.11/24</span>
+</span></span><span class=line><span class=cl>    <span class=na>vlan-raw-device enp3s0</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=na>auto enp4s0.120</span>
+</span></span><span class=line><span class=cl><span class=na>iface enp4s0.120 inet static</span>
+</span></span><span class=line><span class=cl>    <span class=na>address 10.10.20.11/24</span>
+</span></span><span class=line><span class=cl>    <span class=na>vlan-raw-device enp4s0</span>
+</span></span></code></pre></td></tr></table></div></div><p>改完网络后先验证连通性：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ping -c <span class=m>3</span> 10.10.10.20
+</span></span><span class=line><span class=cl>ping -c <span class=m>3</span> 10.10.20.20
+</span></span><span class=line><span class=cl>ip route get 10.10.10.20
+</span></span><span class=line><span class=cl>ip route get 10.10.20.20
+</span></span></code></pre></td></tr></table></div></div><h2 id=3-nas-侧创建-iscsi-target-和-lun>3. NAS 侧：创建 iSCSI Target 和 LUN</h2><p>不同 NAS UI 名字不一样，但核心对象基本一致：</p><ul><li><strong>Portal / Network Portal</strong>：监听哪些 IP，例如 <code>10.10.10.20</code>、<code>10.10.20.20</code>；</li><li><strong>Target</strong>：iSCSI 目标，通常形如 <code>iqn.2026-05.lab.nas:pve-vmstore</code>；</li><li><strong>LUN</strong>：实际块设备，可以来自 ZVOL、厚置备文件、稀疏文件、块设备；</li><li><strong>ACL / Initiator</strong>：允许哪些 PVE 节点访问。</li></ul><p>如果是 TrueNAS SCALE，我更推荐用 <strong>ZVOL 作为 LUN 后端</strong>，并注意：</p><div class=table-wrapper><table><thead><tr><th>参数</th><th>建议值</th><th>原因</th></tr></thead><tbody><tr><td>ZVOL block size</td><td><code>16K</code> 或 <code>32K</code></td><td>兼顾 VM 随机 IO 和空间效率</td></tr><tr><td>Sync</td><td><code>STANDARD</code></td><td>除非你有断电保护和 SLOG，否则别乱关同步</td></tr><tr><td>Compression</td><td><code>lz4</code></td><td>CPU 开销低，虚拟磁盘常有压缩收益</td></tr><tr><td>Sparse</td><td>谨慎开启</td><td>稀疏省空间，但更需要监控池剩余容量</td></tr></tbody></table></div><p>创建完成后，在 PVE 节点扫描 target：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>apt update
+</span></span><span class=line><span class=cl>apt install -y open-iscsi multipath-tools lsscsi sg3-utils
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>iscsiadm -m discovery -t sendtargets -p 10.10.10.20
+</span></span><span class=line><span class=cl>iscsiadm -m discovery -t sendtargets -p 10.10.20.20
+</span></span></code></pre></td></tr></table></div></div><p>登录两条路径：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>iscsiadm -m node -p 10.10.10.20 --login
+</span></span><span class=line><span class=cl>iscsiadm -m node -p 10.10.20.20 --login
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 设置开机自动登录</span>
+</span></span><span class=line><span class=cl>iscsiadm -m node -p 10.10.10.20 --op update -n node.startup -v automatic
+</span></span><span class=line><span class=cl>iscsiadm -m node -p 10.10.20.20 --op update -n node.startup -v automatic
+</span></span></code></pre></td></tr></table></div></div><p>检查系统是否看到两个 SCSI 路径：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>lsscsi -s
+</span></span><span class=line><span class=cl>lsblk -o NAME,TYPE,SIZE,MODEL,SERIAL,WWN
+</span></span></code></pre></td></tr></table></div></div><p>此时通常会看到 <code>/dev/sdb</code>、<code>/dev/sdc</code> 之类两个设备，但它们其实指向同一个 LUN。<strong>不要直接对 <code>/dev/sdb</code> 做 <code>pvcreate</code></strong>，下一步必须先交给 multipath。</p><h2 id=4-pve-侧配置-multipath-聚合链路>4. PVE 侧：配置 multipath 聚合链路</h2><p>先确认 LUN 的 WWID：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>multipath -ll
+</span></span><span class=line><span class=cl>/usr/lib/udev/scsi_id -g -u -d /dev/sdb
+</span></span><span class=line><span class=cl>/usr/lib/udev/scsi_id -g -u -d /dev/sdc
+</span></span></code></pre></td></tr></table></div></div><p>如果两个路径返回同一个 WWID，就可以创建 <code>/etc/multipath.conf</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>defaults {</span>
+</span></span><span class=line><span class=cl>    <span class=na>user_friendly_names yes</span>
+</span></span><span class=line><span class=cl>    <span class=na>find_multipaths yes</span>
+</span></span><span class=line><span class=cl>    <span class=na>polling_interval 5</span>
+</span></span><span class=line><span class=cl>    <span class=na>path_selector &#34;service-time 0&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=na>path_grouping_policy multibus</span>
+</span></span><span class=line><span class=cl>    <span class=na>path_checker tur</span>
+</span></span><span class=line><span class=cl>    <span class=na>failback immediate</span>
+</span></span><span class=line><span class=cl>    <span class=na>no_path_retry queue</span>
+</span></span><span class=line><span class=cl><span class=na>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=na>blacklist {</span>
+</span></span><span class=line><span class=cl>    <span class=na>devnode &#34;^(ram|raw|loop|fd|md|dm-|sr|scd|st)[0-9]*&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=na>devnode &#34;^zd[0-9]*&#34;</span>
+</span></span><span class=line><span class=cl><span class=na>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=na>multipaths {</span>
+</span></span><span class=line><span class=cl>    <span class=na>multipath {</span>
+</span></span><span class=line><span class=cl>        <span class=na>wwid 3600c0ff0000000000000000000000001</span>
+</span></span><span class=line><span class=cl>        <span class=na>alias pve_vmstore</span>
+</span></span><span class=line><span class=cl>    <span class=na>}</span>
+</span></span><span class=line><span class=cl><span class=na>}</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>把上面的 <code>wwid</code> 换成你实际查到的值。<code>alias pve_vmstore</code> 会生成 <code>/dev/mapper/pve_vmstore</code>，后面所有 LVM 操作都只对这个设备做。</p></blockquote><p>启动并重新加载：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>systemctl <span class=nb>enable</span> --now multipathd
+</span></span><span class=line><span class=cl>multipath -F
+</span></span><span class=line><span class=cl>multipath -r
+</span></span><span class=line><span class=cl>multipath -ll
+</span></span></code></pre></td></tr></table></div></div><p>正常输出应该类似：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>pve_vmstore (3600c0ff0000000000000000000000001) dm-3 TrueNAS,iSCSI Disk
+</span></span><span class=line><span class=cl>size=2.0T features=&#39;1 queue_if_no_path&#39; hwhandler=&#39;0&#39; wp=rw
+</span></span><span class=line><span class=cl>|-+- policy=&#39;service-time 0&#39; prio=1 status=active
+</span></span><span class=line><span class=cl>| `- 8:0:0:0 sdb 8:16 active ready running
+</span></span><span class=line><span class=cl>`-+- policy=&#39;service-time 0&#39; prio=1 status=enabled
+</span></span><span class=line><span class=cl>  `- 9:0:0:0 sdc 8:32 active ready running
+</span></span></code></pre></td></tr></table></div></div><p>可以做一个非破坏性的路径测试：拔掉其中一根存储网线，或者在交换机上临时关闭一个端口，然后观察：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>watch -n <span class=m>1</span> <span class=s1>&#39;multipath -ll pve_vmstore; echo; iscsiadm -m session&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>只要还有一条路径是 <code>active ready running</code>，VM IO 就不应该立刻中断。恢复链路后，multipath 会重新把路径加回来。</p><h2 id=5-在-multipath-设备上创建-lvm--lvm-thin>5. 在 multipath 设备上创建 LVM / LVM-Thin</h2><p>如果这是全新的 LUN，可以初始化成 LVM。再次强调：<strong>确认设备名是 <code>/dev/mapper/pve_vmstore</code>，不是 <code>/dev/sdb</code> 或 <code>/dev/sdc</code></strong>。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 危险操作：只对全新 LUN 执行，已有数据会被清理</span>
+</span></span><span class=line><span class=cl>wipefs -n /dev/mapper/pve_vmstore   <span class=c1># 先预览</span>
+</span></span><span class=line><span class=cl>wipefs -a /dev/mapper/pve_vmstore
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>pvcreate /dev/mapper/pve_vmstore
+</span></span><span class=line><span class=cl>vgcreate vg_iscsi_vmstore /dev/mapper/pve_vmstore
+</span></span><span class=line><span class=cl>vgs
+</span></span><span class=line><span class=cl>pvs
+</span></span></code></pre></td></tr></table></div></div><h3 id=51-方案-a普通-lvm更稳适合多节点共享>5.1 方案 A：普通 LVM（更稳，适合多节点共享）</h3><p>普通 LVM 不支持精细的 thin provisioning，但语义更直观，适合 PVE 集群共享块存储：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvesm add lvm iscsi-lvm <span class=se>\
+</span></span></span><span class=line><span class=cl>  --vgname vg_iscsi_vmstore <span class=se>\
+</span></span></span><span class=line><span class=cl>  --content images <span class=se>\
+</span></span></span><span class=line><span class=cl>  --shared <span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>查看 <code>/etc/pve/storage.cfg</code> 会出现类似配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>lvm: iscsi-lvm</span>
+</span></span><span class=line><span class=cl>        <span class=na>vgname vg_iscsi_vmstore</span>
+</span></span><span class=line><span class=cl>        <span class=na>content images</span>
+</span></span><span class=line><span class=cl>        <span class=na>shared 1</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=52-方案-blvm-thin省空间但要更严格监控>5.2 方案 B：LVM-Thin（省空间，但要更严格监控）</h3><p>如果你明确知道自己需要精简配置，可以创建 thin pool：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>lvcreate -L 1.8T -T vg_iscsi_vmstore/vmthin
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>pvesm add lvmthin iscsi-lvmthin <span class=se>\
+</span></span></span><span class=line><span class=cl>  --vgname vg_iscsi_vmstore <span class=se>\
+</span></span></span><span class=line><span class=cl>  --thinpool vmthin <span class=se>\
+</span></span></span><span class=line><span class=cl>  --content images <span class=se>\
+</span></span></span><span class=line><span class=cl>  --shared <span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>但是我不建议在所有 Homelab 场景都默认上 LVM-Thin，原因是：thin pool 一旦写满，故障表现会非常难看；如果底层 NAS 也是稀疏 ZVOL，相当于 <strong>上层 thin + 下层 sparse</strong>，空间超卖风险会叠加。</p><p>至少加上监控：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>lvs -a -o+seg_monitor,metadata_percent,data_percent
+</span></span><span class=line><span class=cl>vgs
+</span></span><span class=line><span class=cl>pvesm status
+</span></span></code></pre></td></tr></table></div></div><p>可以写一个简单的告警脚本：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/usr/bin/env bash
+</span></span></span><span class=line><span class=cl><span class=nb>set</span> -euo pipefail
+</span></span><span class=line><span class=cl><span class=nv>THRESHOLD</span><span class=o>=</span><span class=m>80</span>
+</span></span><span class=line><span class=cl>lvs --noheadings --separator <span class=s1>&#39;,&#39;</span> -o lv_name,data_percent,metadata_percent vg_iscsi_vmstore <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=p>|</span> <span class=k>while</span> <span class=nv>IFS</span><span class=o>=</span><span class=s1>&#39;,&#39;</span> <span class=nb>read</span> -r lv data meta<span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>      <span class=nv>data</span><span class=o>=</span><span class=si>${</span><span class=nv>data</span><span class=p>%.*</span><span class=si>}</span><span class=p>;</span> <span class=nv>meta</span><span class=o>=</span><span class=si>${</span><span class=nv>meta</span><span class=p>%.*</span><span class=si>}</span>
+</span></span><span class=line><span class=cl>      <span class=k>if</span> <span class=o>[</span> <span class=s2>&#34;</span><span class=si>${</span><span class=nv>data</span><span class=k>:-</span><span class=nv>0</span><span class=si>}</span><span class=s2>&#34;</span> -ge <span class=s2>&#34;</span><span class=nv>$THRESHOLD</span><span class=s2>&#34;</span> <span class=o>]</span> <span class=o>||</span> <span class=o>[</span> <span class=s2>&#34;</span><span class=si>${</span><span class=nv>meta</span><span class=k>:-</span><span class=nv>0</span><span class=si>}</span><span class=s2>&#34;</span> -ge <span class=s2>&#34;</span><span class=nv>$THRESHOLD</span><span class=s2>&#34;</span> <span class=o>]</span><span class=p>;</span> <span class=k>then</span>
+</span></span><span class=line><span class=cl>        <span class=nb>echo</span> <span class=s2>&#34;WARN: </span><span class=nv>$lv</span><span class=s2> thin usage data=</span><span class=si>${</span><span class=nv>data</span><span class=si>}</span><span class=s2>% meta=</span><span class=si>${</span><span class=nv>meta</span><span class=si>}</span><span class=s2>%&#34;</span>
+</span></span><span class=line><span class=cl>      <span class=k>fi</span>
+</span></span><span class=line><span class=cl>    <span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=6-pve-集群里的关键细节>6. PVE 集群里的关键细节</h2><h3 id=61-所有节点都要看到同一个-multipath-alias>6.1 所有节点都要看到同一个 multipath alias</h3><p>在 PVE-1 配好 <code>/etc/multipath.conf</code> 后，不要只复制一半。PVE-2、PVE-3 上也要安装同样组件、登录同样 target，并确保：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>multipath -ll pve_vmstore
+</span></span><span class=line><span class=cl>ls -l /dev/mapper/pve_vmstore
+</span></span><span class=line><span class=cl>pvscan --cache
+</span></span><span class=line><span class=cl>vgscan
+</span></span><span class=line><span class=cl>vgs
+</span></span></code></pre></td></tr></table></div></div><p>如果某个节点看不到 VG，可以执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvscan --cache
+</span></span><span class=line><span class=cl>vgchange -ay vg_iscsi_vmstore
+</span></span><span class=line><span class=cl>systemctl restart pvedaemon pvestatd
+</span></span></code></pre></td></tr></table></div></div><h3 id=62-shared-1-不是魔法高可用>6.2 <code>shared 1</code> 不是魔法高可用</h3><p><code>shared 1</code> 的意思是：PVE 知道这个存储在多个节点可见，可以用于迁移和跨节点调度。它不代表：</p><ul><li>NAS 故障时 VM 还能继续运行；</li><li>iSCSI 网络抖动不会影响数据库；</li><li>多个节点可以随便同时挂载同一个普通文件系统；</li><li>不需要备份。</li></ul><p>真正的高可用至少还需要：独立供电、UPS、存储链路冗余、PVE HA 策略、PBS 备份和恢复演练。</p><h3 id=63-迁移测试>6.3 迁移测试</h3><p>创建一个测试 VM，把磁盘放到新存储池：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm create <span class=m>9000</span> --name test-iscsi --memory <span class=m>2048</span> --cores <span class=m>2</span> --net0 virtio,bridge<span class=o>=</span>vmbr0
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --scsihw virtio-scsi-single
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>9000</span> --scsi0 iscsi-lvm:32,discard<span class=o>=</span>on,iothread<span class=o>=</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>qm config <span class=m>9000</span>
+</span></span></code></pre></td></tr></table></div></div><p>在 Web UI 或 CLI 做迁移：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm migrate <span class=m>9000</span> pve-2 --online
+</span></span></code></pre></td></tr></table></div></div><p>迁移成功后确认磁盘没有被复制，而是直接在共享存储上切换归属：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm status <span class=m>9000</span>
+</span></span><span class=line><span class=cl>pvesm list iscsi-lvm
+</span></span></code></pre></td></tr></table></div></div><h2 id=7-性能测试不要只看顺序读写>7. 性能测试：不要只看顺序读写</h2><p>iSCSI 共享存储最怕“看起来带宽很高，实际 VM 卡顿”。建议至少测三类：4K 随机读写、混合读写、延迟分布。</p><p>在测试 VM 内执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>apt update <span class=o>&amp;&amp;</span> apt install -y fio
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 4K 随机读</span>
+</span></span><span class=line><span class=cl>fio --name<span class=o>=</span>randread --filename<span class=o>=</span>/tmp/fio.test --size<span class=o>=</span>8G <span class=se>\
+</span></span></span><span class=line><span class=cl>  --rw<span class=o>=</span>randread --bs<span class=o>=</span>4k --iodepth<span class=o>=</span><span class=m>32</span> --numjobs<span class=o>=</span><span class=m>4</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --direct<span class=o>=</span><span class=m>1</span> --runtime<span class=o>=</span><span class=m>60</span> --time_based --group_reporting
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 4K 随机写</span>
+</span></span><span class=line><span class=cl>fio --name<span class=o>=</span>randwrite --filename<span class=o>=</span>/tmp/fio.test --size<span class=o>=</span>8G <span class=se>\
+</span></span></span><span class=line><span class=cl>  --rw<span class=o>=</span>randwrite --bs<span class=o>=</span>4k --iodepth<span class=o>=</span><span class=m>32</span> --numjobs<span class=o>=</span><span class=m>4</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --direct<span class=o>=</span><span class=m>1</span> --runtime<span class=o>=</span><span class=m>60</span> --time_based --group_reporting
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 70/30 混合负载，更接近数据库/容器盘</span>
+</span></span><span class=line><span class=cl>fio --name<span class=o>=</span>randrw --filename<span class=o>=</span>/tmp/fio.test --size<span class=o>=</span>8G <span class=se>\
+</span></span></span><span class=line><span class=cl>  --rw<span class=o>=</span>randrw --rwmixread<span class=o>=</span><span class=m>70</span> --bs<span class=o>=</span>4k --iodepth<span class=o>=</span><span class=m>32</span> --numjobs<span class=o>=</span><span class=m>4</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --direct<span class=o>=</span><span class=m>1</span> --runtime<span class=o>=</span><span class=m>60</span> --time_based --group_reporting
+</span></span></code></pre></td></tr></table></div></div><p>同时在 PVE 宿主机观察：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>iostat -x <span class=m>1</span>
+</span></span><span class=line><span class=cl>multipath -ll pve_vmstore
+</span></span><span class=line><span class=cl>iftop -i enp3s0
+</span></span><span class=line><span class=cl>iftop -i enp4s0
+</span></span></code></pre></td></tr></table></div></div><p>经验值：</p><div class=table-wrapper><table><thead><tr><th>指标</th><th>更应该关注什么</th><th>说明</th></tr></thead><tbody><tr><td>顺序吞吐</td><td>是否接近网卡上限</td><td>10GbE 下单流能跑满才有意义</td></tr><tr><td>4K 随机 IOPS</td><td>数据库/容器响应</td><td>比大文件复制更重要</td></tr><tr><td><code>clat</code> 延迟</td><td>P95/P99 是否飙升</td><td>卡顿往往来自尾延迟</td></tr><tr><td>路径分布</td><td>两条链路是否都有流量</td><td><code>service-time</code> 不等于简单 50/50</td></tr></tbody></table></div><h2 id=8-踩坑记录>8. 踩坑记录</h2><h3 id=-坑-1对-devsdb-初始化重启后设备名变了>❌ 坑 1：对 <code>/dev/sdb</code> 初始化，重启后设备名变了</h3><p>现象：一开始能用，重启后 VG 丢失，或者 multipath 里出现异常路径。</p><p>原因：<code>/dev/sdb</code>、<code>/dev/sdc</code> 是内核动态分配名，不稳定；多路径场景下它们只是同一个 LUN 的不同路径。</p><p>修复：只使用 <code>/dev/mapper/&lt;alias></code> 或 <code>/dev/disk/by-id/dm-uuid-mpath-*</code>，并把 LVM 建在 multipath 设备上。</p><h3 id=-坑-2nas-上开了稀疏-lunpve-又开-lvm-thin结果空间被写爆>❌ 坑 2：NAS 上开了稀疏 LUN，PVE 又开 LVM-Thin，结果空间被写爆</h3><p>现象：PVE 里看 thin pool 还有空间，NAS 存储池却满了，VM 突然 IO error。</p><p>解决：不要双层超卖；如果必须 thin，就给 NAS 池和 LVM thin pool 都做 70%/80% 告警，并定期检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvesm status
+</span></span><span class=line><span class=cl>lvs -a -o+data_percent,metadata_percent
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-3所有路径都断开后vm-卡死很久>❌ 坑 3：所有路径都断开后，VM 卡死很久</h3><p><code>no_path_retry queue</code> 可以让 IO 在路径消失时排队，适合短暂链路抖动；但如果 NAS 真挂了，VM 会一直等。更保守的做法是设置有限重试，例如：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>defaults {</span>
+</span></span><span class=line><span class=cl>    <span class=na>no_path_retry 12</span>
+</span></span><span class=line><span class=cl>    <span class=na>polling_interval 5</span>
+</span></span><span class=line><span class=cl><span class=na>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>这代表大约等待 60 秒后返回 IO 错误。选择排队还是失败，要看你的业务：数据库可能宁愿等，某些无状态服务则宁愿快速失败后由 HA 拉起。</p><h3 id=-坑-4jumbo-frame-只改了一端>❌ 坑 4：Jumbo Frame 只改了一端</h3><p>MTU 9000 必须链路两端和中间交换机都支持。否则会出现小包正常、大包丢失、iSCSI 随机超时的诡异问题。</p><p>验证方法：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ping -M <span class=k>do</span> -s <span class=m>8972</span> 10.10.10.20
+</span></span><span class=line><span class=cl>ping -M <span class=k>do</span> -s <span class=m>8972</span> 10.10.20.20
+</span></span></code></pre></td></tr></table></div></div><p>如果不通，先退回 MTU 1500。Homelab 里稳定通常比多挤出一点吞吐更重要。</p><h2 id=9-我的推荐配置>9. 我的推荐配置</h2><div class=table-wrapper><table><thead><tr><th>场景</th><th>推荐方案</th><th>理由</th></tr></thead><tbody><tr><td>单 PVE 节点</td><td>本地 ZFS / LVM-Thin ✅</td><td>简单、低延迟、好排障</td></tr><tr><td>单节点 + NAS</td><td>NFS 放 ISO/备份，iSCSI 放少量高 IO VM</td><td>分工清晰</td></tr><tr><td>2-3 节点轻量集群</td><td>iSCSI + Multipath + 普通 LVM 🏆</td><td>可迁移，复杂度可控</td></tr><tr><td>需要节省空间</td><td>LVM-Thin，但必须做告警</td><td>防止 thin pool 写满</td></tr><tr><td>追求真正高可用</td><td>Ceph 或商业 SAN</td><td>单 NAS 不是 HA</td></tr></tbody></table></div><h2 id=总结>总结</h2><p>iSCSI + Multipath 不是 Homelab 的必选项，但它能把 PVE 的存储能力从“每台机器各管各的”推进到“多节点共享一块可靠的块存储”。这套方案的核心不是某一条命令，而是三条原则：<strong>存储网络隔离、所有路径统一进 multipath、PVE 只管理 multipath 之上的 LVM</strong>。</p><p>如果你已经完成了本地 ZFS、PBS 备份和基础监控，再考虑把 NAS/SAN 作为共享块存储接入 PVE，会比一开始就堆复杂架构更稳。最后记住一句话：共享存储提高的是迁移和调度能力，不会替代备份；上线前一定要做断链、迁移和恢复测试。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

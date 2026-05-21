@@ -1,0 +1,694 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Proxmox VE 的 Homelab 环境中，用 K3s 搭建轻量 Kubernetes 集群，配合 MetalLB 提供内网 LoadBalancer，使用 NFS Subdir External Provisioner 实现动态持久化存储，并记录部署、验证、备份与踩坑经验。"><title>别把 K8s 想太重：Homelab 用 K3s + MetalLB + NFS 搭一套真正可用的小集群</title><link rel=canonical href=https://shallowhave.github.io/p/k3s-metallb-nfs-homelab/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="别把 K8s 想太重：Homelab 用 K3s + MetalLB + NFS 搭一套真正可用的小集群"><meta property='og:description' content="在 Proxmox VE 的 Homelab 环境中，用 K3s 搭建轻量 Kubernetes 集群，配合 MetalLB 提供内网 LoadBalancer，使用 NFS Subdir External Provisioner 实现动态持久化存储，并记录部署、验证、备份与踩坑经验。"><meta property='og:url' content='https://shallowhave.github.io/p/k3s-metallb-nfs-homelab/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-21T01:01:49+08:00'><meta property='article:modified_time' content='2026-05-21T01:01:49+08:00'><meta name=twitter:title content="别把 K8s 想太重：Homelab 用 K3s + MetalLB + NFS 搭一套真正可用的小集群"><meta name=twitter:description content="在 Proxmox VE 的 Homelab 环境中，用 K3s 搭建轻量 Kubernetes 集群，配合 MetalLB 提供内网 LoadBalancer，使用 NFS Subdir External Provisioner 实现动态持久化存储，并记录部署、验证、备份与踩坑经验。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言homelab-里要不要上-kubernetes>前言：Homelab 里要不要上 Kubernetes？</a></li><li><a href=#1-目标架构>1. 目标架构</a></li><li><a href=#2-pve-虚拟机准备>2. PVE 虚拟机准备</a></li><li><a href=#3-安装-k3s先关掉默认-traefik-和-servicelb>3. 安装 K3s：先关掉默认 Traefik 和 ServiceLB</a></li><li><a href=#4-安装-helm>4. 安装 Helm</a></li><li><a href=#5-metallb给-service-分配真实内网-ip>5. MetalLB：给 Service 分配真实内网 IP</a><ol><li><a href=#51-规划地址池>5.1 规划地址池</a></li><li><a href=#52-安装-metallb>5.2 安装 MetalLB</a></li><li><a href=#53-用-whoami-测试-loadbalancer>5.3 用 whoami 测试 LoadBalancer</a></li></ol></li><li><a href=#6-nfs-动态存储别让-pod-绑定死在某台节点>6. NFS 动态存储：别让 Pod 绑定死在某台节点</a><ol><li><a href=#61-在-nas--linux-上准备-nfs-共享>6.1 在 NAS / Linux 上准备 NFS 共享</a></li><li><a href=#62-安装-nfs-subdir-external-provisioner>6.2 安装 NFS Subdir External Provisioner</a></li><li><a href=#63-用-pvc-验证动态创建目录>6.3 用 PVC 验证动态创建目录</a></li></ol></li><li><a href=#7-部署一个更接近真实场景的应用>7. 部署一个更接近真实场景的应用</a></li><li><a href=#8-运维命令日常排障先看这些>8. 运维命令：日常排障先看这些</a><ol><li><a href=#81-节点状态>8.1 节点状态</a></li><li><a href=#82-pod-为什么起不来>8.2 Pod 为什么起不来</a></li><li><a href=#83-pvc-为什么-pending>8.3 PVC 为什么 Pending</a></li><li><a href=#84-loadbalancer-为什么没有-external-ip>8.4 LoadBalancer 为什么没有 EXTERNAL-IP</a></li></ol></li><li><a href=#9-备份策略k3s-不等于不用备份>9. 备份策略：K3s 不等于不用备份</a></li><li><a href=#10-踩坑记录>10. 踩坑记录</a><ol><li><a href=#-坑-1metallb-地址池和-dhcp-冲突>❌ 坑 1：MetalLB 地址池和 DHCP 冲突</a></li><li><a href=#-坑-2k3s-默认-traefik-占了-80443>❌ 坑 2：K3s 默认 Traefik 占了 80/443</a></li><li><a href=#-坑-3pvc-一直-pending>❌ 坑 3：PVC 一直 Pending</a></li><li><a href=#-坑-4nfs-权限导致容器写入失败>❌ 坑 4：NFS 权限导致容器写入失败</a></li><li><a href=#-坑-5节点-ip-变化导致集群异常>❌ 坑 5：节点 IP 变化导致集群异常</a></li></ol></li><li><a href=#11-homelab-场景下的最佳实践>11. Homelab 场景下的最佳实践</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/k3s-metallb-nfs-homelab/>别把 K8s 想太重：Homelab 用 K3s + MetalLB + NFS 搭一套真正可用的小集群</a></h2><h3 class=article-subtitle>在 Proxmox VE 的 Homelab 环境中，用 K3s 搭建轻量 Kubernetes 集群，配合 MetalLB 提供内网 LoadBalancer，使用 NFS Subdir External Provisioner 实现动态持久化存储，并记录部署、验证、备份与踩坑经验。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 21, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 12 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言homelab-里要不要上-kubernetes>前言：Homelab 里要不要上 Kubernetes？</h2><p>很多 Homelab 玩家都会经历一个阶段：一开始所有服务都跑在单机 Docker Compose 里，后来服务越来越多，开始出现这些问题：</p><ul><li>哪些服务该放在同一台机器上，靠手工记忆；</li><li>某台 Docker 主机维护或重装时，一堆服务要手动迁移；</li><li>反向代理、证书、数据库、定时任务散落在不同目录；</li><li>服务之间的启动顺序、健康检查、持久化目录没有统一规范；</li><li>想练 Kubernetes，但又不想上来就维护一套又重又复杂的生产集群。</li></ul><p>这时候 <strong>K3s</strong> 很适合作为 Homelab 的 Kubernetes 入门方案。它不是“缩水版玩具”，而是把 Kubernetes 的控制面、组件打包得更轻，默认带 CoreDNS、Traefik、ServiceLB 等组件，适合边缘节点、实验环境和小规模集群。</p><p>不过在 Homelab 裸金属/虚拟化环境里，K3s 默认配置并不一定最适合：</p><ul><li>默认 ServiceLB 会用宿主机端口暴露 <code>LoadBalancer</code>，和已有反向代理容易冲突；</li><li>默认 Traefik 版本和配置由 K3s 管理，后期想精细控制反而麻烦；</li><li>Kubernetes 在公有云里有云厂商 LoadBalancer，在家里没有；</li><li>持久化存储不能只靠 <code>hostPath</code>，否则 Pod 一调度就找不到数据。</li></ul><p>本文就搭一套更适合 Homelab 的小集群：</p><blockquote><p><strong>K3s 负责 Kubernetes 控制面，MetalLB 负责内网 LoadBalancer，NFS Subdir External Provisioner 负责动态 PVC。</strong></p></blockquote><p>官方文档参考：K3s 网络组件说明见 <code>https://docs.k3s.io/networking/networking-services</code>，MetalLB 安装方式见 <code>https://metallb.universe.tf/installation/</code>，NFS Subdir External Provisioner 项目说明见 <code>https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner</code>。</p><hr><h2 id=1-目标架构>1. 目标架构</h2><p>假设 Homelab 已经有一台 Proxmox VE，另外有 NAS 或一台 Linux 机器可以提供 NFS 共享。本文用 3 台 Debian/Ubuntu VM 搭一个轻量集群：</p><div class=table-wrapper><table><thead><tr><th>节点</th><th>IP</th><th>角色</th><th>推荐配置</th></tr></thead><tbody><tr><td><code>k3s-master-01</code></td><td><code>192.168.10.41</code></td><td>K3s server / 控制面</td><td>2C / 4G / 40G</td></tr><tr><td><code>k3s-worker-01</code></td><td><code>192.168.10.42</code></td><td>K3s agent / 工作节点</td><td>2C / 4G / 40G</td></tr><tr><td><code>k3s-worker-02</code></td><td><code>192.168.10.43</code></td><td>K3s agent / 工作节点</td><td>2C / 4G / 40G</td></tr><tr><td><code>nas01</code></td><td><code>192.168.10.30</code></td><td>NFS Server</td><td>已有 NAS / Linux</td></tr><tr><td>MetalLB 地址池</td><td><code>192.168.10.240-192.168.10.250</code></td><td>Service LoadBalancer IP</td><td>路由器 DHCP 之外</td></tr></tbody></table></div><p>整体链路如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>                      ┌────────────────────────────┐
+</span></span><span class=line><span class=cl>                      │        Home Router          │
+</span></span><span class=line><span class=cl>                      │  LAN: 192.168.10.0/24       │
+</span></span><span class=line><span class=cl>                      └─────────────┬──────────────┘
+</span></span><span class=line><span class=cl>                                    │
+</span></span><span class=line><span class=cl>          ┌─────────────────────────┼─────────────────────────┐
+</span></span><span class=line><span class=cl>          │                         │                         │
+</span></span><span class=line><span class=cl>┌─────────▼─────────┐     ┌─────────▼─────────┐     ┌─────────▼─────────┐
+</span></span><span class=line><span class=cl>│ k3s-master-01     │     │ k3s-worker-01     │     │ k3s-worker-02     │
+</span></span><span class=line><span class=cl>│ 192.168.10.41     │     │ 192.168.10.42     │     │ 192.168.10.43     │
+</span></span><span class=line><span class=cl>│ server            │     │ agent             │     │ agent             │
+</span></span><span class=line><span class=cl>└─────────┬─────────┘     └─────────┬─────────┘     └─────────┬─────────┘
+</span></span><span class=line><span class=cl>          │                         │                         │
+</span></span><span class=line><span class=cl>          └────────── Kubernetes Pod / Service Network ───────┘
+</span></span><span class=line><span class=cl>                                    │
+</span></span><span class=line><span class=cl>                          ┌─────────▼─────────┐
+</span></span><span class=line><span class=cl>                          │ MetalLB L2 VIP    │
+</span></span><span class=line><span class=cl>                          │ 192.168.10.240-250│
+</span></span><span class=line><span class=cl>                          └─────────┬─────────┘
+</span></span><span class=line><span class=cl>                                    │
+</span></span><span class=line><span class=cl>                          ┌─────────▼─────────┐
+</span></span><span class=line><span class=cl>                          │ NFS / NAS         │
+</span></span><span class=line><span class=cl>                          │ 192.168.10.30     │
+</span></span><span class=line><span class=cl>                          └───────────────────┘
+</span></span></code></pre></td></tr></table></div></div><p>为什么不用默认 ServiceLB？因为 Homelab 里通常已经有 Traefik、Nginx Proxy Manager、Caddy 或软路由端口转发。K3s 默认 ServiceLB 会在节点上占用宿主机端口，多个服务暴露 80/443 时容易打架。MetalLB 的 L2 模式更像“给 Service 分配一个真实内网 IP”，清晰很多。</p><hr><h2 id=2-pve-虚拟机准备>2. PVE 虚拟机准备</h2><p>K3s 对资源要求不高，但 Kubernetes 对网络稳定性比较敏感。建议在 PVE 里按下面原则建 VM：</p><div class=table-wrapper><table><thead><tr><th>项目</th><th>建议</th><th>原因</th></tr></thead><tbody><tr><td>CPU Type</td><td><code>host</code></td><td>减少虚拟化指令损耗</td></tr><tr><td>网卡</td><td>VirtIO / bridge 到业务 VLAN</td><td>性能好，网络路径清晰</td></tr><tr><td>磁盘控制器</td><td>VirtIO SCSI single</td><td>性能和兼容性较好</td></tr><tr><td>QEMU Guest Agent</td><td>启用</td><td>方便 PVE 获取 IP、优雅关机</td></tr><tr><td>系统</td><td>Debian 12 / Ubuntu 22.04+</td><td>软件源稳定，K3s 支持好</td></tr><tr><td>IP</td><td>静态 IP 或 DHCP 保留</td><td>节点 IP 变化会影响集群</td></tr></tbody></table></div><p>在每台 VM 内先做基础初始化：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo apt update
+</span></span><span class=line><span class=cl>sudo apt install -y curl ca-certificates gnupg nfs-common open-iscsi qemu-guest-agent
+</span></span><span class=line><span class=cl>sudo systemctl <span class=nb>enable</span> --now qemu-guest-agent
+</span></span></code></pre></td></tr></table></div></div><p>关闭 swap。Kubernetes 不喜欢节点内存被 swap 偷偷换出，轻则性能抖动，重则 kubelet 报警：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo swapoff -a
+</span></span><span class=line><span class=cl>sudo sed -i.bak <span class=s1>&#39;/ swap / s/^/#/&#39;</span> /etc/fstab
+</span></span><span class=line><span class=cl>free -h
+</span></span></code></pre></td></tr></table></div></div><p>加载常用内核模块并写入 sysctl：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat <span class=s>&lt;&lt;&#39;EOF&#39; | sudo tee /etc/modules-load.d/k3s.conf
+</span></span></span><span class=line><span class=cl><span class=s>overlay
+</span></span></span><span class=line><span class=cl><span class=s>br_netfilter
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>sudo modprobe overlay
+</span></span><span class=line><span class=cl>sudo modprobe br_netfilter
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>cat <span class=s>&lt;&lt;&#39;EOF&#39; | sudo tee /etc/sysctl.d/99-k3s-homelab.conf
+</span></span></span><span class=line><span class=cl><span class=s>net.bridge.bridge-nf-call-iptables = 1
+</span></span></span><span class=line><span class=cl><span class=s>net.bridge.bridge-nf-call-ip6tables = 1
+</span></span></span><span class=line><span class=cl><span class=s>net.ipv4.ip_forward = 1
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>sudo sysctl --system
+</span></span></code></pre></td></tr></table></div></div><p>如果你使用 UFW 或上游防火墙，至少要确保节点之间这些端口互通：</p><div class=table-wrapper><table><thead><tr><th>端口</th><th>协议</th><th>用途</th></tr></thead><tbody><tr><td><code>6443</code></td><td>TCP</td><td>Kubernetes API Server</td></tr><tr><td><code>8472</code></td><td>UDP</td><td>Flannel VXLAN 默认后端</td></tr><tr><td><code>10250</code></td><td>TCP</td><td>kubelet metrics / exec / logs</td></tr><tr><td><code>2379-2380</code></td><td>TCP</td><td>嵌入式 etcd，仅多 server HA 需要</td></tr><tr><td><code>2049</code></td><td>TCP/UDP</td><td>NFS</td></tr></tbody></table></div><p>单网段 Homelab 里可以先保证 K3s 三台节点互通：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ping -c <span class=m>3</span> 192.168.10.41
+</span></span><span class=line><span class=cl>ping -c <span class=m>3</span> 192.168.10.42
+</span></span><span class=line><span class=cl>ping -c <span class=m>3</span> 192.168.10.43
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=3-安装-k3s先关掉默认-traefik-和-servicelb>3. 安装 K3s：先关掉默认 Traefik 和 ServiceLB</h2><p>K3s 默认会安装 Traefik Ingress Controller 和 ServiceLB。对于纯测试这很方便，但 Homelab 长期使用建议禁用，后续自己部署 Ingress 和 MetalLB。</p><p>在 <code>k3s-master-01</code> 执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -sfL https://get.k3s.io <span class=p>|</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=nv>INSTALL_K3S_EXEC</span><span class=o>=</span><span class=s2>&#34;server \
+</span></span></span><span class=line><span class=cl><span class=s2>    --disable traefik \
+</span></span></span><span class=line><span class=cl><span class=s2>    --disable servicelb \
+</span></span></span><span class=line><span class=cl><span class=s2>    --write-kubeconfig-mode 644 \
+</span></span></span><span class=line><span class=cl><span class=s2>    --node-ip 192.168.10.41 \
+</span></span></span><span class=line><span class=cl><span class=s2>    --advertise-address 192.168.10.41&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  sh -
+</span></span></code></pre></td></tr></table></div></div><p>确认服务状态：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo systemctl status k3s --no-pager
+</span></span><span class=line><span class=cl>kubectl get nodes -o wide
+</span></span><span class=line><span class=cl>kubectl get pods -A
+</span></span></code></pre></td></tr></table></div></div><p>拿到 worker 加入集群需要的 token：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo cat /var/lib/rancher/k3s/server/node-token
+</span></span></code></pre></td></tr></table></div></div><p>在 <code>k3s-worker-01</code> 执行，替换 <code>K3S_TOKEN</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>export</span> <span class=nv>K3S_TOKEN</span><span class=o>=</span><span class=s1>&#39;K10xxxx::server:xxxx&#39;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>curl -sfL https://get.k3s.io <span class=p>|</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=nv>K3S_URL</span><span class=o>=</span><span class=s2>&#34;https://192.168.10.41:6443&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=nv>K3S_TOKEN</span><span class=o>=</span><span class=s2>&#34;</span><span class=nv>$K3S_TOKEN</span><span class=s2>&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=nv>INSTALL_K3S_EXEC</span><span class=o>=</span><span class=s2>&#34;agent --node-ip 192.168.10.42&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  sh -
+</span></span></code></pre></td></tr></table></div></div><p>在 <code>k3s-worker-02</code> 执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>export</span> <span class=nv>K3S_TOKEN</span><span class=o>=</span><span class=s1>&#39;K10xxxx::server:xxxx&#39;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>curl -sfL https://get.k3s.io <span class=p>|</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=nv>K3S_URL</span><span class=o>=</span><span class=s2>&#34;https://192.168.10.41:6443&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=nv>K3S_TOKEN</span><span class=o>=</span><span class=s2>&#34;</span><span class=nv>$K3S_TOKEN</span><span class=s2>&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=nv>INSTALL_K3S_EXEC</span><span class=o>=</span><span class=s2>&#34;agent --node-ip 192.168.10.43&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  sh -
+</span></span></code></pre></td></tr></table></div></div><p>回到 master 验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl get nodes -o wide
+</span></span></code></pre></td></tr></table></div></div><p>正常应该看到类似：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>NAME            STATUS   ROLES                  AGE   VERSION        INTERNAL-IP
+</span></span><span class=line><span class=cl>k3s-master-01   Ready    control-plane,master   5m    v1.30.x+k3s1   192.168.10.41
+</span></span><span class=line><span class=cl>k3s-worker-01   Ready    &lt;none&gt;                 2m    v1.30.x+k3s1   192.168.10.42
+</span></span><span class=line><span class=cl>k3s-worker-02   Ready    &lt;none&gt;                 2m    v1.30.x+k3s1   192.168.10.43
+</span></span></code></pre></td></tr></table></div></div><p>如果你在个人电脑上操作集群，可以把 kubeconfig 拷出来：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p ~/.kube
+</span></span><span class=line><span class=cl>scp root@192.168.10.41:/etc/rancher/k3s/k3s.yaml ~/.kube/k3s-homelab.yaml
+</span></span><span class=line><span class=cl>sed -i <span class=s1>&#39;s/127.0.0.1/192.168.10.41/g&#39;</span> ~/.kube/k3s-homelab.yaml
+</span></span><span class=line><span class=cl><span class=nb>export</span> <span class=nv>KUBECONFIG</span><span class=o>=</span>~/.kube/k3s-homelab.yaml
+</span></span><span class=line><span class=cl>kubectl get nodes
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=4-安装-helm>4. 安装 Helm</h2><p>后续安装 NFS Provisioner、Ingress Controller、监控组件都可以用 Helm，先在管理机或 master 上安装：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 <span class=p>|</span> bash
+</span></span><span class=line><span class=cl>helm version
+</span></span></code></pre></td></tr></table></div></div><p>给常用 namespace 建好：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl create namespace metallb-system
+</span></span><span class=line><span class=cl>kubectl create namespace storage
+</span></span><span class=line><span class=cl>kubectl create namespace ingress
+</span></span><span class=line><span class=cl>kubectl create namespace demo
+</span></span></code></pre></td></tr></table></div></div><p>如果 namespace 已存在会报错，可以改用幂等写法：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl create namespace demo --dry-run<span class=o>=</span>client -o yaml <span class=p>|</span> kubectl apply -f -
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=5-metallb给-service-分配真实内网-ip>5. MetalLB：给 Service 分配真实内网 IP</h2><h3 id=51-规划地址池>5.1 规划地址池</h3><p>MetalLB L2 模式本质上是让集群里的 speaker 通过二层网络响应 ARP/NDP，把某个 LoadBalancer IP 宣告出去。因此地址池必须满足：</p><ul><li>和客户端在同一个二层网络或能被正确路由；</li><li>不在路由器 DHCP 自动分配范围里；</li><li>不与现有 NAS、PVE、打印机、摄像头等静态 IP 冲突；</li><li>最好在路由器里备注或保留。</li></ul><p>假设路由器 DHCP 范围是 <code>192.168.10.100-192.168.10.199</code>，那我把 MetalLB 放到 <code>192.168.10.240-192.168.10.250</code>。</p><h3 id=52-安装-metallb>5.2 安装 MetalLB</h3><p>使用官方 manifest 安装：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/config/manifests/metallb-native.yaml
+</span></span><span class=line><span class=cl>kubectl -n metallb-system get pods -o wide
+</span></span></code></pre></td></tr></table></div></div><p>等待 controller 和 speaker 都 Ready：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n metallb-system <span class=nb>wait</span> --for<span class=o>=</span><span class=nv>condition</span><span class=o>=</span>Ready pod --all --timeout<span class=o>=</span>180s
+</span></span></code></pre></td></tr></table></div></div><p>创建地址池和 L2Advertisement：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat <span class=s>&lt;&lt;&#39;EOF&#39; | kubectl apply -f -
+</span></span></span><span class=line><span class=cl><span class=s>apiVersion: metallb.io/v1beta1
+</span></span></span><span class=line><span class=cl><span class=s>kind: IPAddressPool
+</span></span></span><span class=line><span class=cl><span class=s>metadata:
+</span></span></span><span class=line><span class=cl><span class=s>  name: homelab-lan-pool
+</span></span></span><span class=line><span class=cl><span class=s>  namespace: metallb-system
+</span></span></span><span class=line><span class=cl><span class=s>spec:
+</span></span></span><span class=line><span class=cl><span class=s>  addresses:
+</span></span></span><span class=line><span class=cl><span class=s>    - 192.168.10.240-192.168.10.250
+</span></span></span><span class=line><span class=cl><span class=s>---
+</span></span></span><span class=line><span class=cl><span class=s>apiVersion: metallb.io/v1beta1
+</span></span></span><span class=line><span class=cl><span class=s>kind: L2Advertisement
+</span></span></span><span class=line><span class=cl><span class=s>metadata:
+</span></span></span><span class=line><span class=cl><span class=s>  name: homelab-l2
+</span></span></span><span class=line><span class=cl><span class=s>  namespace: metallb-system
+</span></span></span><span class=line><span class=cl><span class=s>spec:
+</span></span></span><span class=line><span class=cl><span class=s>  ipAddressPools:
+</span></span></span><span class=line><span class=cl><span class=s>    - homelab-lan-pool
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=53-用-whoami-测试-loadbalancer>5.3 用 whoami 测试 LoadBalancer</h3><p>部署一个最小 HTTP 服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat <span class=s>&lt;&lt;&#39;EOF&#39; | kubectl apply -n demo -f -
+</span></span></span><span class=line><span class=cl><span class=s>apiVersion: apps/v1
+</span></span></span><span class=line><span class=cl><span class=s>kind: Deployment
+</span></span></span><span class=line><span class=cl><span class=s>metadata:
+</span></span></span><span class=line><span class=cl><span class=s>  name: whoami
+</span></span></span><span class=line><span class=cl><span class=s>spec:
+</span></span></span><span class=line><span class=cl><span class=s>  replicas: 2
+</span></span></span><span class=line><span class=cl><span class=s>  selector:
+</span></span></span><span class=line><span class=cl><span class=s>    matchLabels:
+</span></span></span><span class=line><span class=cl><span class=s>      app: whoami
+</span></span></span><span class=line><span class=cl><span class=s>  template:
+</span></span></span><span class=line><span class=cl><span class=s>    metadata:
+</span></span></span><span class=line><span class=cl><span class=s>      labels:
+</span></span></span><span class=line><span class=cl><span class=s>        app: whoami
+</span></span></span><span class=line><span class=cl><span class=s>    spec:
+</span></span></span><span class=line><span class=cl><span class=s>      containers:
+</span></span></span><span class=line><span class=cl><span class=s>        - name: whoami
+</span></span></span><span class=line><span class=cl><span class=s>          image: traefik/whoami:v1.10
+</span></span></span><span class=line><span class=cl><span class=s>          ports:
+</span></span></span><span class=line><span class=cl><span class=s>            - containerPort: 80
+</span></span></span><span class=line><span class=cl><span class=s>---
+</span></span></span><span class=line><span class=cl><span class=s>apiVersion: v1
+</span></span></span><span class=line><span class=cl><span class=s>kind: Service
+</span></span></span><span class=line><span class=cl><span class=s>metadata:
+</span></span></span><span class=line><span class=cl><span class=s>  name: whoami-lb
+</span></span></span><span class=line><span class=cl><span class=s>spec:
+</span></span></span><span class=line><span class=cl><span class=s>  type: LoadBalancer
+</span></span></span><span class=line><span class=cl><span class=s>  selector:
+</span></span></span><span class=line><span class=cl><span class=s>    app: whoami
+</span></span></span><span class=line><span class=cl><span class=s>  ports:
+</span></span></span><span class=line><span class=cl><span class=s>    - name: http
+</span></span></span><span class=line><span class=cl><span class=s>      port: 80
+</span></span></span><span class=line><span class=cl><span class=s>      targetPort: 80
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><p>查看分配到的 IP：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n demo get svc whoami-lb -o wide
+</span></span></code></pre></td></tr></table></div></div><p>输出类似：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>NAME        TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)
+</span></span><span class=line><span class=cl>whoami-lb   LoadBalancer   10.43.100.20    192.168.10.240   80:31234/TCP
+</span></span></code></pre></td></tr></table></div></div><p>从同网段任意机器访问：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl http://192.168.10.240
+</span></span></code></pre></td></tr></table></div></div><p>能看到 <code>Hostname</code>、<code>IP</code>、<code>RemoteAddr</code> 等信息，就说明 MetalLB 工作正常。</p><hr><h2 id=6-nfs-动态存储别让-pod-绑定死在某台节点>6. NFS 动态存储：别让 Pod 绑定死在某台节点</h2><p>Kubernetes 里最容易被忽略的是存储。很多教程为了简单直接用 <code>hostPath</code>，但它有个致命问题：Pod 一旦被调度到另一台节点，原来的路径和数据就不在了。</p><p>Homelab 没必要一上来就 Ceph、Longhorn、Rook 全家桶。已有 NAS 的情况下，NFS 是最轻量、最容易理解的持久化方案。</p><h3 id=61-在-nas--linux-上准备-nfs-共享>6.1 在 NAS / Linux 上准备 NFS 共享</h3><p>如果你的 NAS 有 Web UI，可以直接创建共享目录并允许 K3s 节点访问。这里用 Debian 作为 NFS Server 示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo apt update
+</span></span><span class=line><span class=cl>sudo apt install -y nfs-kernel-server
+</span></span><span class=line><span class=cl>sudo mkdir -p /srv/nfs/k3s
+</span></span><span class=line><span class=cl>sudo chown nobody:nogroup /srv/nfs/k3s
+</span></span><span class=line><span class=cl>sudo chmod <span class=m>0777</span> /srv/nfs/k3s
+</span></span></code></pre></td></tr></table></div></div><p>配置 <code>/etc/exports</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat <span class=s>&lt;&lt;&#39;EOF&#39; | sudo tee /etc/exports.d/k3s.exports
+</span></span></span><span class=line><span class=cl><span class=s>/srv/nfs/k3s 192.168.10.0/24(rw,sync,no_subtree_check,no_root_squash)
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>sudo exportfs -rav
+</span></span><span class=line><span class=cl>sudo systemctl <span class=nb>enable</span> --now nfs-server
+</span></span><span class=line><span class=cl>showmount -e 127.0.0.1
+</span></span></code></pre></td></tr></table></div></div><p>在每个 K3s 节点上测试挂载：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo apt install -y nfs-common
+</span></span><span class=line><span class=cl>sudo mkdir -p /mnt/k3s-test
+</span></span><span class=line><span class=cl>sudo mount -t nfs 192.168.10.30:/srv/nfs/k3s /mnt/k3s-test
+</span></span><span class=line><span class=cl>sudo touch /mnt/k3s-test/from-<span class=k>$(</span>hostname<span class=k>)</span>
+</span></span><span class=line><span class=cl>ls -l /mnt/k3s-test
+</span></span><span class=line><span class=cl>sudo umount /mnt/k3s-test
+</span></span></code></pre></td></tr></table></div></div><p>如果这里都挂不上，不要急着装 Helm Chart，先排查 NFS、防火墙和 NAS 权限。</p><h3 id=62-安装-nfs-subdir-external-provisioner>6.2 安装 NFS Subdir External Provisioner</h3><p>这个 provisioner 会把每个 PVC 自动创建成 NFS 共享目录里的子目录，命名类似 <code>${namespace}-${pvcName}-${pvName}</code>，适合 Homelab 的轻量动态存储。</p><p>安装：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>helm repo add nfs-subdir-external-provisioner <span class=se>\
+</span></span></span><span class=line><span class=cl>  https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+</span></span><span class=line><span class=cl>helm repo update
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>helm upgrade --install nfs-client <span class=se>\
+</span></span></span><span class=line><span class=cl>  nfs-subdir-external-provisioner/nfs-subdir-external-provisioner <span class=se>\
+</span></span></span><span class=line><span class=cl>  --namespace storage <span class=se>\
+</span></span></span><span class=line><span class=cl>  --set nfs.server<span class=o>=</span>192.168.10.30 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --set nfs.path<span class=o>=</span>/srv/nfs/k3s <span class=se>\
+</span></span></span><span class=line><span class=cl>  --set storageClass.name<span class=o>=</span>nfs-client <span class=se>\
+</span></span></span><span class=line><span class=cl>  --set storageClass.defaultClass<span class=o>=</span><span class=nb>true</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --set storageClass.archiveOnDelete<span class=o>=</span><span class=nb>true</span>
+</span></span></code></pre></td></tr></table></div></div><p>检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n storage get pods -o wide
+</span></span><span class=line><span class=cl>kubectl get storageclass
+</span></span></code></pre></td></tr></table></div></div><p>应该看到 <code>nfs-client</code>，并且标记为默认 StorageClass：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>NAME                   PROVISIONER                                   RECLAIMPOLICY
+</span></span><span class=line><span class=cl>nfs-client (default)   cluster.local/nfs-client-nfs-subdir-external-provisioner Delete
+</span></span></code></pre></td></tr></table></div></div><h3 id=63-用-pvc-验证动态创建目录>6.3 用 PVC 验证动态创建目录</h3><p>创建一个 PVC 和测试 Pod：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat <span class=s>&lt;&lt;&#39;EOF&#39; | kubectl apply -n demo -f -
+</span></span></span><span class=line><span class=cl><span class=s>apiVersion: v1
+</span></span></span><span class=line><span class=cl><span class=s>kind: PersistentVolumeClaim
+</span></span></span><span class=line><span class=cl><span class=s>metadata:
+</span></span></span><span class=line><span class=cl><span class=s>  name: nginx-html
+</span></span></span><span class=line><span class=cl><span class=s>spec:
+</span></span></span><span class=line><span class=cl><span class=s>  accessModes:
+</span></span></span><span class=line><span class=cl><span class=s>    - ReadWriteMany
+</span></span></span><span class=line><span class=cl><span class=s>  resources:
+</span></span></span><span class=line><span class=cl><span class=s>    requests:
+</span></span></span><span class=line><span class=cl><span class=s>      storage: 1Gi
+</span></span></span><span class=line><span class=cl><span class=s>---
+</span></span></span><span class=line><span class=cl><span class=s>apiVersion: v1
+</span></span></span><span class=line><span class=cl><span class=s>kind: Pod
+</span></span></span><span class=line><span class=cl><span class=s>metadata:
+</span></span></span><span class=line><span class=cl><span class=s>  name: nfs-test
+</span></span></span><span class=line><span class=cl><span class=s>spec:
+</span></span></span><span class=line><span class=cl><span class=s>  containers:
+</span></span></span><span class=line><span class=cl><span class=s>    - name: shell
+</span></span></span><span class=line><span class=cl><span class=s>      image: busybox:1.36
+</span></span></span><span class=line><span class=cl><span class=s>      command: [&#34;sh&#34;, &#34;-c&#34;, &#34;date &gt; /data/index.html &amp;&amp; sleep 3600&#34;]
+</span></span></span><span class=line><span class=cl><span class=s>      volumeMounts:
+</span></span></span><span class=line><span class=cl><span class=s>        - name: data
+</span></span></span><span class=line><span class=cl><span class=s>          mountPath: /data
+</span></span></span><span class=line><span class=cl><span class=s>  volumes:
+</span></span></span><span class=line><span class=cl><span class=s>    - name: data
+</span></span></span><span class=line><span class=cl><span class=s>      persistentVolumeClaim:
+</span></span></span><span class=line><span class=cl><span class=s>        claimName: nginx-html
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><p>验证 PVC 绑定：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n demo get pvc,pod
+</span></span><span class=line><span class=cl>kubectl -n demo <span class=nb>exec</span> nfs-test -- cat /data/index.html
+</span></span></code></pre></td></tr></table></div></div><p>到 NAS 上看目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ls -lah /srv/nfs/k3s
+</span></span><span class=line><span class=cl>find /srv/nfs/k3s -maxdepth <span class=m>2</span> -type f -name index.html -print -exec cat <span class=o>{}</span> <span class=se>\;</span>
+</span></span></code></pre></td></tr></table></div></div><p>能看到文件，说明 Kubernetes PVC -> NFS 子目录 -> Pod 挂载整条链路打通。</p><hr><h2 id=7-部署一个更接近真实场景的应用>7. 部署一个更接近真实场景的应用</h2><p>下面部署一个带持久化目录的 <code>nginx</code>，用 PVC 存网页文件，用 MetalLB 暴露内网 IP。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span><span class=lnt>54
+</span><span class=lnt>55
+</span><span class=lnt>56
+</span><span class=lnt>57
+</span><span class=lnt>58
+</span><span class=lnt>59
+</span><span class=lnt>60
+</span><span class=lnt>61
+</span><span class=lnt>62
+</span><span class=lnt>63
+</span><span class=lnt>64
+</span><span class=lnt>65
+</span><span class=lnt>66
+</span><span class=lnt>67
+</span><span class=lnt>68
+</span><span class=lnt>69
+</span><span class=lnt>70
+</span><span class=lnt>71
+</span><span class=lnt>72
+</span><span class=lnt>73
+</span><span class=lnt>74
+</span><span class=lnt>75
+</span><span class=lnt>76
+</span><span class=lnt>77
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat <span class=s>&lt;&lt;&#39;EOF&#39; | kubectl apply -n demo -f -
+</span></span></span><span class=line><span class=cl><span class=s>apiVersion: v1
+</span></span></span><span class=line><span class=cl><span class=s>kind: PersistentVolumeClaim
+</span></span></span><span class=line><span class=cl><span class=s>metadata:
+</span></span></span><span class=line><span class=cl><span class=s>  name: web-data
+</span></span></span><span class=line><span class=cl><span class=s>spec:
+</span></span></span><span class=line><span class=cl><span class=s>  accessModes:
+</span></span></span><span class=line><span class=cl><span class=s>    - ReadWriteMany
+</span></span></span><span class=line><span class=cl><span class=s>  resources:
+</span></span></span><span class=line><span class=cl><span class=s>    requests:
+</span></span></span><span class=line><span class=cl><span class=s>      storage: 2Gi
+</span></span></span><span class=line><span class=cl><span class=s>---
+</span></span></span><span class=line><span class=cl><span class=s>apiVersion: apps/v1
+</span></span></span><span class=line><span class=cl><span class=s>kind: Deployment
+</span></span></span><span class=line><span class=cl><span class=s>metadata:
+</span></span></span><span class=line><span class=cl><span class=s>  name: nginx-nfs
+</span></span></span><span class=line><span class=cl><span class=s>spec:
+</span></span></span><span class=line><span class=cl><span class=s>  replicas: 2
+</span></span></span><span class=line><span class=cl><span class=s>  selector:
+</span></span></span><span class=line><span class=cl><span class=s>    matchLabels:
+</span></span></span><span class=line><span class=cl><span class=s>      app: nginx-nfs
+</span></span></span><span class=line><span class=cl><span class=s>  template:
+</span></span></span><span class=line><span class=cl><span class=s>    metadata:
+</span></span></span><span class=line><span class=cl><span class=s>      labels:
+</span></span></span><span class=line><span class=cl><span class=s>        app: nginx-nfs
+</span></span></span><span class=line><span class=cl><span class=s>    spec:
+</span></span></span><span class=line><span class=cl><span class=s>      initContainers:
+</span></span></span><span class=line><span class=cl><span class=s>        - name: init-index
+</span></span></span><span class=line><span class=cl><span class=s>          image: busybox:1.36
+</span></span></span><span class=line><span class=cl><span class=s>          command:
+</span></span></span><span class=line><span class=cl><span class=s>            - sh
+</span></span></span><span class=line><span class=cl><span class=s>            - -c
+</span></span></span><span class=line><span class=cl><span class=s>            - |
+</span></span></span><span class=line><span class=cl><span class=s>              if [ ! -f /usr/share/nginx/html/index.html ]; then
+</span></span></span><span class=line><span class=cl><span class=s>                echo &#34;Hello from K3s + MetalLB + NFS at $(date)&#34; &gt; /usr/share/nginx/html/index.html
+</span></span></span><span class=line><span class=cl><span class=s>              fi
+</span></span></span><span class=line><span class=cl><span class=s>          volumeMounts:
+</span></span></span><span class=line><span class=cl><span class=s>            - name: web-data
+</span></span></span><span class=line><span class=cl><span class=s>              mountPath: /usr/share/nginx/html
+</span></span></span><span class=line><span class=cl><span class=s>      containers:
+</span></span></span><span class=line><span class=cl><span class=s>        - name: nginx
+</span></span></span><span class=line><span class=cl><span class=s>          image: nginx:1.27-alpine
+</span></span></span><span class=line><span class=cl><span class=s>          ports:
+</span></span></span><span class=line><span class=cl><span class=s>            - containerPort: 80
+</span></span></span><span class=line><span class=cl><span class=s>          readinessProbe:
+</span></span></span><span class=line><span class=cl><span class=s>            httpGet:
+</span></span></span><span class=line><span class=cl><span class=s>              path: /
+</span></span></span><span class=line><span class=cl><span class=s>              port: 80
+</span></span></span><span class=line><span class=cl><span class=s>            initialDelaySeconds: 3
+</span></span></span><span class=line><span class=cl><span class=s>            periodSeconds: 5
+</span></span></span><span class=line><span class=cl><span class=s>          livenessProbe:
+</span></span></span><span class=line><span class=cl><span class=s>            httpGet:
+</span></span></span><span class=line><span class=cl><span class=s>              path: /
+</span></span></span><span class=line><span class=cl><span class=s>              port: 80
+</span></span></span><span class=line><span class=cl><span class=s>            initialDelaySeconds: 10
+</span></span></span><span class=line><span class=cl><span class=s>            periodSeconds: 10
+</span></span></span><span class=line><span class=cl><span class=s>          volumeMounts:
+</span></span></span><span class=line><span class=cl><span class=s>            - name: web-data
+</span></span></span><span class=line><span class=cl><span class=s>              mountPath: /usr/share/nginx/html
+</span></span></span><span class=line><span class=cl><span class=s>      volumes:
+</span></span></span><span class=line><span class=cl><span class=s>        - name: web-data
+</span></span></span><span class=line><span class=cl><span class=s>          persistentVolumeClaim:
+</span></span></span><span class=line><span class=cl><span class=s>            claimName: web-data
+</span></span></span><span class=line><span class=cl><span class=s>---
+</span></span></span><span class=line><span class=cl><span class=s>apiVersion: v1
+</span></span></span><span class=line><span class=cl><span class=s>kind: Service
+</span></span></span><span class=line><span class=cl><span class=s>metadata:
+</span></span></span><span class=line><span class=cl><span class=s>  name: nginx-nfs-lb
+</span></span></span><span class=line><span class=cl><span class=s>spec:
+</span></span></span><span class=line><span class=cl><span class=s>  type: LoadBalancer
+</span></span></span><span class=line><span class=cl><span class=s>  selector:
+</span></span></span><span class=line><span class=cl><span class=s>    app: nginx-nfs
+</span></span></span><span class=line><span class=cl><span class=s>  ports:
+</span></span></span><span class=line><span class=cl><span class=s>    - name: http
+</span></span></span><span class=line><span class=cl><span class=s>      port: 80
+</span></span></span><span class=line><span class=cl><span class=s>      targetPort: 80
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><p>查看调度和 Service：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n demo get pods -o wide
+</span></span><span class=line><span class=cl>kubectl -n demo get svc nginx-nfs-lb
+</span></span></code></pre></td></tr></table></div></div><p>访问：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl http://<span class=k>$(</span>kubectl -n demo get svc nginx-nfs-lb -o <span class=nv>jsonpath</span><span class=o>=</span><span class=s1>&#39;{.status.loadBalancer.ingress[0].ip}&#39;</span><span class=k>)</span>
+</span></span></code></pre></td></tr></table></div></div><p>强制删除一个 Pod，验证 Kubernetes 自动拉起后数据仍在：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n demo delete pod -l <span class=nv>app</span><span class=o>=</span>nginx-nfs
+</span></span><span class=line><span class=cl>kubectl -n demo rollout status deploy/nginx-nfs
+</span></span><span class=line><span class=cl>kubectl -n demo get pods -o wide
+</span></span></code></pre></td></tr></table></div></div><p>只要 PVC 正常绑定，Pod 换节点后仍能读到同一个 NFS 目录。</p><hr><h2 id=8-运维命令日常排障先看这些>8. 运维命令：日常排障先看这些</h2><p>Kubernetes 最大的问题不是部署，而是出问题时不知道看哪里。下面这组命令建议收藏。</p><h3 id=81-节点状态>8.1 节点状态</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl get nodes -o wide
+</span></span><span class=line><span class=cl>kubectl describe node k3s-worker-01
+</span></span><span class=line><span class=cl>kubectl top nodes   <span class=c1># 需要 metrics-server，K3s 通常默认带</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=82-pod-为什么起不来>8.2 Pod 为什么起不来</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n demo get pods -o wide
+</span></span><span class=line><span class=cl>kubectl -n demo describe pod &lt;pod-name&gt;
+</span></span><span class=line><span class=cl>kubectl -n demo logs &lt;pod-name&gt; --all-containers --tail<span class=o>=</span><span class=m>100</span>
+</span></span></code></pre></td></tr></table></div></div><p>重点看 Events：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n demo get events --sort-by<span class=o>=</span><span class=s1>&#39;.lastTimestamp&#39;</span> <span class=p>|</span> tail -30
+</span></span></code></pre></td></tr></table></div></div><h3 id=83-pvc-为什么-pending>8.3 PVC 为什么 Pending</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n demo get pvc
+</span></span><span class=line><span class=cl>kubectl -n demo describe pvc nginx-html
+</span></span><span class=line><span class=cl>kubectl get pv
+</span></span><span class=line><span class=cl>kubectl -n storage logs deploy/nfs-client-nfs-subdir-external-provisioner --tail<span class=o>=</span><span class=m>100</span>
+</span></span></code></pre></td></tr></table></div></div><p>常见原因：NFS Server 地址写错、节点没装 <code>nfs-common</code>、NAS 权限没放行、StorageClass 名字不匹配。</p><h3 id=84-loadbalancer-为什么没有-external-ip>8.4 LoadBalancer 为什么没有 EXTERNAL-IP</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n metallb-system get pods -o wide
+</span></span><span class=line><span class=cl>kubectl -n metallb-system logs deploy/controller --tail<span class=o>=</span><span class=m>100</span>
+</span></span><span class=line><span class=cl>kubectl -n metallb-system get ipaddresspool,l2advertisement
+</span></span><span class=line><span class=cl>kubectl -n demo describe svc whoami-lb
+</span></span></code></pre></td></tr></table></div></div><p>如果 <code>EXTERNAL-IP</code> 一直 Pending，通常是 MetalLB 没有地址池或地址池配置 namespace/name 不对。如果有 IP 但访问不通，更多是二层网络、防火墙或 IP 冲突。</p><hr><h2 id=9-备份策略k3s-不等于不用备份>9. 备份策略：K3s 不等于不用备份</h2><p>K3s server 默认使用 SQLite 存储集群状态，单 master Homelab 足够简单，但必须备份：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo mkdir -p /backup/k3s
+</span></span><span class=line><span class=cl>sudo k3s etcd-snapshot save --name homelab-manual-<span class=k>$(</span>date +%F-%H%M<span class=k>)</span> 2&gt;/dev/null <span class=o>||</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl>sudo tar -czf /backup/k3s/k3s-server-<span class=k>$(</span>date +%F<span class=k>)</span>.tar.gz <span class=se>\
+</span></span></span><span class=line><span class=cl>  /etc/rancher/k3s <span class=se>\
+</span></span></span><span class=line><span class=cl>  /var/lib/rancher/k3s/server/db <span class=se>\
+</span></span></span><span class=line><span class=cl>  /var/lib/rancher/k3s/server/manifests
+</span></span></code></pre></td></tr></table></div></div><p>注意：如果你是单 server 默认 SQLite，<code>k3s etcd-snapshot</code> 不适用，所以这里用 <code>tar</code> 备份 server DB 目录。更推荐把关键 Kubernetes YAML 也纳入 Git：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p ~/homelab-k8s/<span class=o>{</span>apps,infra,storage<span class=o>}</span>
+</span></span><span class=line><span class=cl>kubectl get deploy,svc,pvc,ingress -A -o yaml &gt; ~/homelab-k8s/cluster-export.yaml
+</span></span></code></pre></td></tr></table></div></div><p>真正的数据在 NFS 上，所以还要备份 NAS 目录。例如用 <code>rsync</code> 每天同步到另一块盘：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>rsync -aH --delete /srv/nfs/k3s/ /mnt/backup/k3s-nfs/
+</span></span></code></pre></td></tr></table></div></div><p>或者接入之前文章提到的 Restic/MinIO 这类备份体系。原则很简单：</p><div class=table-wrapper><table><thead><tr><th>对象</th><th>备份方式</th><th>恢复优先级</th></tr></thead><tbody><tr><td>K3s 配置 / token</td><td>tar + 离线保存</td><td>高</td></tr><tr><td>Kubernetes YAML</td><td>Git 管理</td><td>高</td></tr><tr><td>NFS 持久化数据</td><td>NAS 快照 / rsync / restic</td><td>最高</td></tr><tr><td>容器镜像</td><td>不建议备份，保留版本号即可</td><td>中</td></tr></tbody></table></div><hr><h2 id=10-踩坑记录>10. 踩坑记录</h2><h3 id=-坑-1metallb-地址池和-dhcp-冲突>❌ 坑 1：MetalLB 地址池和 DHCP 冲突</h3><p>现象：Service 已经拿到 <code>192.168.10.240</code>，但访问时偶尔通、偶尔不通，路由器 ARP 表里 MAC 地址还会变化。</p><p>根因：这个 IP 被 DHCP 分给了其他设备，MetalLB 又在宣告同一个 IP。</p><p>解决：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>arp -a <span class=p>|</span> grep 192.168.10.240
+</span></span><span class=line><span class=cl>kubectl -n metallb-system get ipaddresspool -o yaml
+</span></span></code></pre></td></tr></table></div></div><p>把 MetalLB 地址池放到 DHCP 范围之外，并在路由器备注保留。不要偷懒直接用一段“看起来没人用”的 IP。</p><h3 id=-坑-2k3s-默认-traefik-占了-80443>❌ 坑 2：K3s 默认 Traefik 占了 80/443</h3><p>现象：你明明部署了自己的 Ingress 或反向代理，但 80/443 总是被奇怪的 Pod 接管。</p><p>根因：K3s 默认安装 Traefik；如果同时使用 ServiceLB，还可能在节点上创建 svclb Pod 绑定宿主机端口。</p><p>解决：安装 K3s 时加：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>--disable traefik --disable servicelb
+</span></span></code></pre></td></tr></table></div></div><p>已经安装过的环境，可以查看：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl -n kube-system get helmchart
+</span></span><span class=line><span class=cl>kubectl -n kube-system get pods <span class=p>|</span> grep -E <span class=s1>&#39;traefik|svclb&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>测试环境可以卸载重装；长期环境则要先确认现有 Ingress 资源是否依赖默认 Traefik。</p><h3 id=-坑-3pvc-一直-pending>❌ 坑 3：PVC 一直 Pending</h3><p>现象：应用 Pod 起不来，<code>kubectl describe pod</code> 看到 <code>pod has unbound immediate PersistentVolumeClaims</code>。</p><p>排查顺序：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl get storageclass
+</span></span><span class=line><span class=cl>kubectl -n demo describe pvc &lt;pvc-name&gt;
+</span></span><span class=line><span class=cl>kubectl -n storage logs deploy/nfs-client-nfs-subdir-external-provisioner --tail<span class=o>=</span><span class=m>100</span>
+</span></span><span class=line><span class=cl>showmount -e 192.168.10.30
+</span></span></code></pre></td></tr></table></div></div><p>常见原因有三个：</p><ol><li>没有默认 StorageClass，PVC 又没写 <code>storageClassName</code>；</li><li>NFS Server 路径不对；</li><li>K3s 节点没有安装 <code>nfs-common</code>。</li></ol><h3 id=-坑-4nfs-权限导致容器写入失败>❌ 坑 4：NFS 权限导致容器写入失败</h3><p>现象：PVC Bound，Pod 也 Running，但应用日志报 <code>Permission denied</code>。</p><p>临时验证可以放宽权限：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo chmod <span class=m>0777</span> /srv/nfs/k3s
+</span></span></code></pre></td></tr></table></div></div><p>但长期建议按应用 UID/GID 管理目录权限。例如很多容器使用 <code>1000:1000</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo chown -R 1000:1000 /srv/nfs/k3s/demo-web-data-*/
+</span></span></code></pre></td></tr></table></div></div><p>如果 NAS 支持 ACL，也可以用 NAS 自己的权限系统处理。不要在不理解后果的情况下给所有共享都开 <code>no_root_squash</code>，本文只是为了 Homelab 快速打通链路。</p><h3 id=-坑-5节点-ip-变化导致集群异常>❌ 坑 5：节点 IP 变化导致集群异常</h3><p>K3s 节点 IP 如果通过 DHCP 随机变化，证书、Node InternalIP、Flannel 路由都可能异常。解决方式：</p><ul><li>路由器上做 DHCP 静态租约；或</li><li>VM 内配置静态 IP；</li><li>安装时显式指定 <code>--node-ip</code> 和 server 的 <code>--advertise-address</code>。</li></ul><p>查看当前节点 IP：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>kubectl get nodes -o wide
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=11-homelab-场景下的最佳实践>11. Homelab 场景下的最佳实践</h2><div class=table-wrapper><table><thead><tr><th>场景</th><th>推荐配置</th><th>理由</th></tr></thead><tbody><tr><td>只想练 K8s</td><td>单 master + 1 worker</td><td>成本低，足够理解对象模型</td></tr><tr><td>长期跑轻量服务</td><td>1 master + 2 worker</td><td>有基本调度冗余</td></tr><tr><td>需要高可用控制面</td><td>3 server + embedded etcd</td><td>控制面可容忍单点故障</td></tr><tr><td>已有 NAS</td><td>NFS Provisioner</td><td>简单、透明、容易备份</td></tr><tr><td>追求块存储和副本</td><td>Longhorn / Ceph</td><td>功能强，但复杂度明显上升</td></tr><tr><td>暴露内网服务</td><td>MetalLB L2</td><td>比 NodePort 更直观</td></tr><tr><td>对外 HTTPS</td><td>Ingress + 反向代理 / DNS-01</td><td>统一证书和入口</td></tr></tbody></table></div><p>我的建议是：<strong>先不要一口气上 GitOps、Service Mesh、Ceph、三主高可用。</strong> Homelab 的目标是稳定、可恢复、可理解。K3s + MetalLB + NFS 已经足够承载 Dashboard、Wiki、轻量监控、测试服务、内部 API 等场景。</p><p>等你真的遇到 NFS 性能瓶颈、Pod 调度隔离、灰度发布、Secret 管理等问题，再逐步引入 Longhorn、Argo CD、External Secrets、cert-manager，会比一开始堆满组件健康得多。</p><hr><h2 id=总结>总结</h2><p>这套方案的核心不是“为了 Kubernetes 而 Kubernetes”，而是给 Homelab 增加一层可调度、可声明、可迁移的应用运行环境。</p><div class=table-wrapper><table><thead><tr><th>维度</th><th>结论</th></tr></thead><tbody><tr><td>✅ 集群方案</td><td>K3s 单 server + 多 worker，轻量够用</td></tr><tr><td>✅ 网络暴露</td><td>禁用默认 ServiceLB，用 MetalLB 分配真实内网 IP</td></tr><tr><td>✅ 持久化</td><td>使用 NFS Subdir External Provisioner 动态创建 PVC</td></tr><tr><td>✅ 运维重点</td><td>固定节点 IP、规划地址池、备份 K3s 配置和 NFS 数据</td></tr><tr><td>⚠️ 不建议</td><td>一开始就堆 Ceph、Service Mesh、复杂 GitOps</td></tr></tbody></table></div><p>如果你已经有 Proxmox VE、NAS 和几台 Linux VM，这套 K3s 小集群基本就是 Homelab 进阶的下一块拼图：比 Docker Compose 更规范，比生产级 Kubernetes 更轻，出了问题也能靠普通 Linux、网络和存储知识排查清楚。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

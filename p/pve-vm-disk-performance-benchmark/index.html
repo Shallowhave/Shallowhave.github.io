@@ -1,0 +1,252 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Proxmox VE 中，虚拟机磁盘性能远不止选个存储池那么简单。本文从磁盘控制器类型、缓存模式、IO 线程、异步 IO 四大维度，通过 fio 基准测试数据，帮你找到最适合业务场景的虚拟磁盘配置。"><title>PVE 虚拟机磁盘性能终极对比：VirtIO vs SATA vs SCSI，缓存与 IO 线程深入调优</title><link rel=canonical href=https://shallowhave.github.io/p/pve-vm-disk-performance-benchmark/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="PVE 虚拟机磁盘性能终极对比：VirtIO vs SATA vs SCSI，缓存与 IO 线程深入调优"><meta property='og:description' content="在 Proxmox VE 中，虚拟机磁盘性能远不止选个存储池那么简单。本文从磁盘控制器类型、缓存模式、IO 线程、异步 IO 四大维度，通过 fio 基准测试数据，帮你找到最适合业务场景的虚拟磁盘配置。"><meta property='og:url' content='https://shallowhave.github.io/p/pve-vm-disk-performance-benchmark/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-08T09:00:00+08:00'><meta property='article:modified_time' content='2026-05-08T09:00:00+08:00'><meta name=twitter:title content="PVE 虚拟机磁盘性能终极对比：VirtIO vs SATA vs SCSI，缓存与 IO 线程深入调优"><meta name=twitter:description content="在 Proxmox VE 中，虚拟机磁盘性能远不止选个存储池那么简单。本文从磁盘控制器类型、缓存模式、IO 线程、异步 IO 四大维度，通过 fio 基准测试数据，帮你找到最适合业务场景的虚拟磁盘配置。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-各种控制器的工作原理>1. 各种控制器的工作原理</a><ol><li><a href=#11-ide>1.1 IDE</a></li><li><a href=#12-sata-ahci>1.2 SATA (AHCI)</a></li><li><a href=#13-virtio-block>1.3 VirtIO Block</a></li><li><a href=#14-virtio-scsi>1.4 VirtIO SCSI</a></li></ol></li><li><a href=#2-缓存模式彻底解析>2. 缓存模式彻底解析</a><ol><li><a href=#21-no-cache-none--pve-默认为什么>2.1 No cache (none) — PVE 默认，为什么？</a></li><li><a href=#22-write-back--极限性能>2.2 Write back — 极限性能</a></li><li><a href=#23-write-through--极端安全>2.3 Write through — 极端安全</a></li><li><a href=#24-unsafe--不要在生产环境使用>2.4 Unsafe — 不要在生产环境使用</a></li></ol></li><li><a href=#3-io-线程与异步-io>3. IO 线程与异步 IO</a><ol><li><a href=#31-io-thread>3.1 IO Thread</a></li><li><a href=#32-异步-io-模式>3.2 异步 IO 模式</a></li></ol></li><li><a href=#4-基准测试数据说话>4. 基准测试：数据说话</a><ol><li><a href=#41-测试环境>4.1 测试环境</a></li><li><a href=#42-测试方法>4.2 测试方法</a></li><li><a href=#43-测试结果>4.3 测试结果</a></li><li><a href=#44-结果分析>4.4 结果分析</a></li></ol></li><li><a href=#5-不同场景的最佳配置>5. 不同场景的最佳配置</a><ol><li><a href=#51-数据库-vmmysql--postgresql--mariadb>5.1 数据库 VM（MySQL / PostgreSQL / MariaDB）</a></li><li><a href=#52-文件服务器--nassamba--nfs>5.2 文件服务器 / NAS（Samba / NFS）</a></li><li><a href=#53-轻量级服务dns--nginx--监控>5.3 轻量级服务（DNS / Nginx / 监控）</a></li><li><a href=#54-windows-虚拟机>5.4 Windows 虚拟机</a></li></ol></li><li><a href=#6-如何在你自己的环境中测试>6. 如何在你自己的环境中测试</a><ol><li><a href=#61-快速测试脚本>6.1 快速测试脚本</a></li><li><a href=#62-在-pve-层面查看磁盘-io>6.2 在 PVE 层面查看磁盘 IO</a></li><li><a href=#63-使用-dd-快速评估>6.3 使用 dd 快速评估</a></li></ol></li><li><a href=#7-常见踩坑记录>7. 常见踩坑记录</a><ol><li><a href=#-坑-1windows-vm-装完系统才想起没装-virtio-驱动>❌ 坑 1：Windows VM 装完系统才想起没装 VirtIO 驱动</a></li><li><a href=#-坑-2开启-io-thread-后发现磁盘变慢>❌ 坑 2：开启 IO Thread 后发现磁盘变慢</a></li><li><a href=#-坑-3qcow2--cachenone-的零星数据损坏>❌ 坑 3：qcow2 + cache=none 的零星数据损坏</a></li><li><a href=#-坑-4discardon-导致-windows-vm-磁盘操作卡顿>❌ 坑 4：<code>discard=on</code> 导致 Windows VM 磁盘操作卡顿</a></li></ol></li><li><a href=#8-总结>8. 总结</a><ol><li><a href=#一句话总结>一句话总结</a></li></ol></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/pve-vm-disk-performance-benchmark/>PVE 虚拟机磁盘性能终极对比：VirtIO vs SATA vs SCSI，缓存与 IO 线程深入调优</a></h2><h3 class=article-subtitle>在 Proxmox VE 中，虚拟机磁盘性能远不止选个存储池那么简单。本文从磁盘控制器类型、缓存模式、IO 线程、异步 IO 四大维度，通过 fio 基准测试数据，帮你找到最适合业务场景的虚拟磁盘配置。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 08, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 10 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>在 PVE 中创建虚拟机时，&ldquo;磁盘"选项卡里的选项多得让人眼花缭乱：</p><ul><li><strong>总线/控制器</strong>：IDE、SATA、VirtIO Block、VirtIO SCSI（含单队列和多队列版本）</li><li><strong>缓存</strong>：No cache (default)、Write back、Write through、Direct sync、Unsafe</li><li><strong>IO 线程</strong>：开还是不开？</li><li><strong>异步 IO</strong>：native、threads、io_uring？</li></ul><p>默认配置下 PVE 8.x 会帮你选 VirtIO SCSI single + cache=none + IO thread + io_uring，但这是否适合你的所有工作负载？换用 Write back 能提升多少性能？SATA 和 VirtIO 到底差多少？</p><p>本文通过 <strong>fio 基准测试</strong>，用数据回答这些问题，并给出不同场景下的最佳配置建议。</p><hr><h2 id=1-各种控制器的工作原理>1. 各种控制器的工作原理</h2><h3 id=11-ide>1.1 IDE</h3><p>IDE（ATA PIIX4）是最古老的虚拟磁盘接口，在 PVE 中主要用于兼容旧版操作系统（如 Windows XP 或某些 BSD 版本）。它的 IO 路径非常长：每个请求都要经过完整的 ATA 命令模拟、PIO/DMA 模拟，且 <strong>最多只能连接 4 个设备</strong>。</p><p>性能是所有选项中最低的，不要在任何新部署中使用。</p><h3 id=12-sata-ahci>1.2 SATA (AHCI)</h3><p>SATA 使用 AHCI 控制器模拟，相比 IDE 有了质的飞跃—支持 NCQ（Native Command Queuing）、热插拔、最多 6 个设备。但 AHCI 的 IO 路径仍然经过 QEMU 的完整设备模拟层，每个命令都要经过虚拟化捕获→模拟→执行→返回的完整轮回。</p><p>SATA 的 virtio-win 驱动支持度很好，Windows 虚拟机可以免驱识别。如果你需要在 Windows VM 中直插 USB 启动盘或简单安装，SATA 是"开箱即用"的好选择，但性能不是它的强项。</p><h3 id=13-virtio-block>1.3 VirtIO Block</h3><p>VirtIO 是半虚拟化（paravirtualized）方案。客户机安装 virtio 驱动后，IO 请求通过 <strong>共享内存环形缓冲区（virtqueue）</strong> 直接与宿主机的 KVM 模块通信，跳过了完整的设备模拟层。</p><p>VirtIO Block（设备名 <code>/dev/vda</code>）架构简单直接：一个 virtqueue 处理所有 IO 请求。优点是延迟低、开销小；缺点是单个 virtqueue 在高并发（高队列深度）下会成为瓶颈。</p><h3 id=14-virtio-scsi>1.4 VirtIO SCSI</h3><p>VirtIO SCSI 不是直接基于 virtqueue 传输块数据，而是模拟 SCSI 控制器，通过 SCSI 命令（CDB）传输 IO 请求。它比 VirtIO Block 灵活得多：</p><ul><li><strong>支持 SCSI 持久预留（PR）</strong> — 这对 Windows 故障转移集群至关重要</li><li><strong>支持 TRIM/DISCARD</strong> — qcow2 或 thin LVM 可以回收未使用的空间</li><li><strong>支持多个 virtqueue</strong> — 多队列并行处理 IO，大幅提升吞吐量</li></ul><p>在 PVE 的 GUI 中，VirtIO SCSI 有多个子选项：</p><div class=table-wrapper><table><thead><tr><th>选项</th><th>virtqueue 数量</th><th>适用场景</th></tr></thead><tbody><tr><td>VirtIO SCSI</td><td>1 个默认队列</td><td>轻量级 VM</td></tr><tr><td>VirtIO SCSI <strong>single</strong></td><td>1 个队列（专用 IO 线程绑定）</td><td>通用推荐（<strong>PVE 8.x 默认</strong>）</td></tr><tr><td>IO Thread + 多队列</td><td>自动匹配 vCPU 核数</td><td>高 IO 并发场景，如数据库</td></tr></tbody></table></div><hr><h2 id=2-缓存模式彻底解析>2. 缓存模式彻底解析</h2><p>QEMU 的 <code>cache</code> 选项控制宿主侧缓存行为，由三个底层标志组合而成：</p><div class=table-wrapper><table><thead><tr><th>PVE 名称</th><th>QEMU 名称</th><th>writeback</th><th>direct</th><th>no-flush</th><th>数据安全</th><th>性能</th></tr></thead><tbody><tr><td>No cache (default)</td><td>none</td><td>✔</td><td>✔</td><td>✘</td><td>高</td><td>高</td></tr><tr><td>Write back</td><td>writeback</td><td>✔</td><td>✘</td><td>✘</td><td>中高</td><td>最高</td></tr><tr><td>Write through</td><td>writethrough</td><td>✘</td><td>✘</td><td>✘</td><td>最高</td><td>低</td></tr><tr><td>Direct sync</td><td>directsync</td><td>✘</td><td>✔</td><td>✘</td><td>高</td><td>中</td></tr><tr><td>Unsafe</td><td>unsafe</td><td>✔</td><td>✘</td><td>✔</td><td>❌极低</td><td>最高</td></tr></tbody></table></div><h3 id=21-no-cache-none--pve-默认为什么>2.1 No cache (none) — PVE 默认，为什么？</h3><p><code>cache=none</code> 开启 <code>writeback</code> + <code>direct</code>：</p><ul><li><strong>writeback=on</strong>：写入数据先到宿主机页缓存就返回成功，由客户机负责发 flush 刷盘</li><li><strong>direct=on</strong>：绕过宿主机页缓存，QEMU 直接用 O_DIRECT 读写磁盘文件</li></ul><p>所以它叫"none"不是说"没有缓存&rdquo;，而是"不额外使用宿主机页缓存"。配合 ZFS ARC 使用时，ZFS 本身已经有一层 ARC 读缓存和 ZIL/SLOG 写加速，所以不让 QEMU 再叠一层页缓存是合理的。</p><blockquote><p><strong>安全说明</strong>：很多人以为 <code>cache=none</code> 是"无缓存的纯直写"，这是误解。它的 writeback 是 on 的状态，数据安全依赖于客户机在关键操作（如文件系统事务提交）后发送正确的 flush 指令。现代 Linux 和 Windows 的存储栈都会在合适时机 flush，所以绝大多数场景下它是安全的。Thomas-Krenn Wiki 的电源故障测试也证实：除 <code>unsafe</code> 外，none、writeback、writethrough、directsync 四种模式在正确 flush 的客户机下均<strong>零数据损坏</strong>。</p></blockquote><h3 id=22-write-back--极限性能>2.2 Write back — 极限性能</h3><p><code>cache=writeback</code> 等于 <code>writeback=on</code> + <code>direct=off</code>。QEMU 收到写入请求后直接写入宿主机页缓存就返回，宿主机的内核会异步将脏页刷到磁盘。这样写入延迟极低，因为数据甚至不需要经过 ZFS 的写入路径就能从 QEMU 返回。</p><p><strong>代价</strong>：如果宿主机突然掉电，宿主机页缓存中未刷盘的数据会丢失。虽然客户机 flush 指令到达后数据在磁盘上是安全的，但 flush 之前的脏页数据在掉电场景下是风险点。</p><h3 id=23-write-through--极端安全>2.3 Write through — 极端安全</h3><p>每次写入都调用 <code>fsync</code>，确认数据落盘后才返回。数据安全最高，但性能最差。适合存关键数据库日志、财务数据等场景。</p><h3 id=24-unsafe--不要在生产环境使用>2.4 Unsafe — 不要在生产环境使用</h3><p>不刷盘、不调用 flush、不考虑持久化。一旦宿主机崩溃或掉电，虚拟磁盘上的数据大概率损坏。<strong>只适合做临时测试</strong>。</p><hr><h2 id=3-io-线程与异步-io>3. IO 线程与异步 IO</h2><h3 id=31-io-thread>3.1 IO Thread</h3><p>PVE 启动 IO Thread 后，QEMU 会创建一个<strong>独立线程</strong>专门处理所有 IO 请求，不再占用 vCPU 线程的时间片。</p><p><strong>什么时候该开？</strong></p><ul><li>高 IO 并发场景（数据库、文件服务器）</li><li>VM 的 vCPU 数量少且 IO 密集</li><li>多块磁盘直通同一个 SCSI 控制器时</li></ul><p><strong>什么时候可以不开？</strong></p><ul><li>vCPU 数量充足的轻量级 VM</li><li>IO 压力极小的服务（DNS、Nginx）</li></ul><p>基准测试表明，IO Thread 在大队列深度（QD=16 以上）下能带来 <strong>15%~30%</strong> 的性能提升。</p><h3 id=32-异步-io-模式>3.2 异步 IO 模式</h3><p>PVE 8.x 中在 VM 选项 → 高级 → Async IO 里可以设置：</p><div class=table-wrapper><table><thead><tr><th>模式</th><th>机制</th><th>适用场景</th></tr></thead><tbody><tr><td><code>native</code> (aio=native)</td><td>使用 Linux AIO，通过 <code>io_submit()</code> 系统调用提交 IO</td><td>通用，低延迟</td></tr><tr><td><code>threads</code> (aio=threads)</td><td>用 QEMU 内部线程池模拟异步 IO</td><td>兼容性好，但性能差</td></tr><tr><td><code>io_uring</code> (默认)</td><td>使用 Linux 5.1+ 的 io_uring 接口，共享提交/完成队列</td><td><strong>PVE 8.x 默认推荐</strong>，低开销高并发</td></tr></tbody></table></div><p><strong>推荐选择</strong>：io_uring。它在低队列深度时延迟与 native 相当，高队列深度时吞吐量更好。从 PVE 8.0 起 io_uring 已成为默认值。</p><hr><h2 id=4-基准测试数据说话>4. 基准测试：数据说话</h2><h3 id=41-测试环境>4.1 测试环境</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>宿主机: Proxmox VE 8.3, Kernel 6.8
+</span></span><span class=line><span class=cl>CPU: Intel i5-12500 (6C12T)
+</span></span><span class=line><span class=cl>内存: 32GB DDR4
+</span></span><span class=line><span class=cl>存储池: 2×NVMe SSD ZFS Mirror (ashift=12, recordsize=16K, compression=on)
+</span></span><span class=line><span class=cl>测试 VM: Debian 12, 4 vCPU, 8GB RAM
+</span></span><span class=line><span class=cl>磁盘: 32GB, qcow2 格式, 存储于 ZFS 卷
+</span></span><span class=line><span class=cl>测试工具: fio 3.36
+</span></span></code></pre></td></tr></table></div></div><h3 id=42-测试方法>4.2 测试方法</h3><p>使用 fio 模拟四种典型工作负载：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=c1># 测试脚本: bench.fio</span>
+</span></span><span class=line><span class=cl><span class=k>[global]</span>
+</span></span><span class=line><span class=cl><span class=na>ioengine</span><span class=o>=</span><span class=s>libaio</span>
+</span></span><span class=line><span class=cl><span class=na>direct</span><span class=o>=</span><span class=s>1</span>
+</span></span><span class=line><span class=cl><span class=na>time_based</span><span class=o>=</span><span class=s>1</span>
+</span></span><span class=line><span class=cl><span class=na>runtime</span><span class=o>=</span><span class=s>60</span>
+</span></span><span class=line><span class=cl><span class=na>group_reporting</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[randread-4k]</span>
+</span></span><span class=line><span class=cl><span class=na>rw</span><span class=o>=</span><span class=s>randread</span>
+</span></span><span class=line><span class=cl><span class=na>bs</span><span class=o>=</span><span class=s>4k</span>
+</span></span><span class=line><span class=cl><span class=na>iodepth</span><span class=o>=</span><span class=s>32</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[randwrite-4k]</span>
+</span></span><span class=line><span class=cl><span class=na>rw</span><span class=o>=</span><span class=s>randwrite</span>
+</span></span><span class=line><span class=cl><span class=na>bs</span><span class=o>=</span><span class=s>4k</span>
+</span></span><span class=line><span class=cl><span class=na>iodepth</span><span class=o>=</span><span class=s>32</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[seqread-1m]</span>
+</span></span><span class=line><span class=cl><span class=na>rw</span><span class=o>=</span><span class=s>read</span>
+</span></span><span class=line><span class=cl><span class=na>bs</span><span class=o>=</span><span class=s>1m</span>
+</span></span><span class=line><span class=cl><span class=na>iodepth</span><span class=o>=</span><span class=s>8</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[seqwrite-1m]</span>
+</span></span><span class=line><span class=cl><span class=na>rw</span><span class=o>=</span><span class=s>write</span>
+</span></span><span class=line><span class=cl><span class=na>bs</span><span class=o>=</span><span class=s>1m</span>
+</span></span><span class=line><span class=cl><span class=na>iodepth</span><span class=o>=</span><span class=s>8</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[randrw-4k-70r30w]</span>
+</span></span><span class=line><span class=cl><span class=na>rw</span><span class=o>=</span><span class=s>randrw</span>
+</span></span><span class=line><span class=cl><span class=na>rwmixread</span><span class=o>=</span><span class=s>70</span>
+</span></span><span class=line><span class=cl><span class=na>bs</span><span class=o>=</span><span class=s>4k</span>
+</span></span><span class=line><span class=cl><span class=na>iodepth</span><span class=o>=</span><span class=s>16</span>
+</span></span></code></pre></td></tr></table></div></div><p>分别在五种配置下执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># Test 1: VirtIO SCSI single + cache=none + iothread + io_uring</span>
+</span></span><span class=line><span class=cl><span class=c1># Test 2: VirtIO SCSI single + cache=writeback + iothread + io_uring</span>
+</span></span><span class=line><span class=cl><span class=c1># Test 3: VirtIO Block + cache=none + io_uring</span>
+</span></span><span class=line><span class=cl><span class=c1># Test 4: SATA (AHCI) + cache=none + io_uring</span>
+</span></span><span class=line><span class=cl><span class=c1># Test 5: VirtIO SCSI single + cache=none + 无 iothread + io_uring</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=43-测试结果>4.3 测试结果</h3><p>以下是各配置在不同负载下的 IOPS 和带宽汇总：</p><div class=table-wrapper><table><thead><tr><th>配置</th><th>4K 随机读</th><th>4K 随机写</th><th>1M 顺序读</th><th>1M 顺序写</th><th>4K 混合 70/30</th></tr></thead><tbody><tr><td><strong>SCSI single + none + iothread</strong></td><td>98K IOPS ✅</td><td>42K IOPS ✅</td><td><strong>2.1 GB/s</strong> ✅</td><td>890 MB/s ✅</td><td>31K IOPS ✅</td></tr><tr><td><strong>SCSI single + writeback + iothread</strong></td><td><strong>112K IOPS</strong> 🏆</td><td><strong>55K IOPS</strong> 🏆</td><td>1.9 GB/s</td><td><strong>950 MB/s</strong> 🏆</td><td><strong>38K IOPS</strong> 🏆</td></tr><tr><td><strong>VirtIO Block + none</strong></td><td>85K IOPS</td><td>36K IOPS</td><td>1.6 GB/s</td><td>760 MB/s</td><td>27K IOPS</td></tr><tr><td><strong>SATA + none</strong></td><td>32K IOPS ❌</td><td>12K IOPS ❌</td><td>480 MB/s ❌</td><td>220 MB/s ❌</td><td>9K IOPS ❌</td></tr><tr><td><strong>SCSI single + none + 无 iothread</strong></td><td>76K IOPS</td><td>31K IOPS</td><td>1.7 GB/s</td><td>710 MB/s</td><td>24K IOPS</td></tr></tbody></table></div><blockquote><p>⚠️ <strong>说明</strong>：以上为单次测试结果，实际数据受 ZFS ARC 大小、宿主机负载、SSD 磨损度等因素影响。更重要的是关注配置之间的<strong>相对差距</strong>而非绝对数值。</p></blockquote><h3 id=44-结果分析>4.4 结果分析</h3><p><strong>SATA vs VirtIO</strong>：SATA 在 4K 随机读写下性能仅为 VirtIO SCSI 的 <strong>1/3</strong>。如果你还在用 SATA 总线装 VM，换成 VirtIO SCSI 单次变更就能让你的磁盘性能翻 3 倍。</p><p><strong>Write back vs No cache</strong>：Write back 在随机写入场景领先约 <strong>30%</strong>，这是因为它绕过了 O_DIRECT 的限制，让数据先进入宿主机页缓存再异步刷盘。但这个性能优势与安全风险成正比—务必确认你的客户机定期发送 flush 指令。</p><p><strong>IO Thread 的作用</strong>：开启 IO Thread 后随机读写提升约 <strong>25%~35%</strong>，在大队列深度时效果更明显。如果你的 VM 要做数据库或编译构建，一定要开 IO Thread。</p><p><strong>VirtIO SCSI vs VirtIO Block</strong>：VirtIO SCSI 在随机读写吞吐上领先 VirtIO Block 约 <strong>15%</strong>，多队列的并行能力在混合读写场景优势最大。</p><hr><h2 id=5-不同场景的最佳配置>5. 不同场景的最佳配置</h2><h3 id=51-数据库-vmmysql--postgresql--mariadb>5.1 数据库 VM（MySQL / PostgreSQL / MariaDB）</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=c># 关键配置</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>scsihw</span><span class=p>:</span><span class=w> </span><span class=l>virtio-scsi-single   </span><span class=w> </span><span class=c># VirtIO SCSI single 控制器</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>cache</span><span class=p>:</span><span class=w> </span><span class=l>none                   </span><span class=w> </span><span class=c># 不用 writeback, 保证数据一致性</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>iothread</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>                    </span><span class=c># 必须开 IO Thread</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>discard</span><span class=p>:</span><span class=w> </span><span class=kc>on</span><span class=w>                    </span><span class=c># 启用 TRIM, 回收 thin LVM 空间</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>async_io</span><span class=p>:</span><span class=w> </span><span class=l>io_uring           </span><span class=w> </span><span class=c># 推荐 io_uring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 最佳实践：单独的 virtio-scsi-single 控制器用于数据盘</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 系统盘和数据盘分开用不同 SCSI 控制器</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><strong>为什么不用 writeback</strong>：数据库引擎自己做了完善的 WAL 日志和事务管理，需要底层存储保证 <code>fsync</code> 的行为可预测。Write back 的异步刷盘行为可能让数据库误以为数据已落盘。</p><h3 id=52-文件服务器--nassamba--nfs>5.2 文件服务器 / NAS（Samba / NFS）</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>scsihw</span><span class=p>:</span><span class=w> </span><span class=l>virtio-scsi-single</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>cache</span><span class=p>:</span><span class=w> </span><span class=l>writeback              </span><span class=w> </span><span class=c># 大文件顺序读写多, 缓存友好</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>iothread</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>                    </span><span class=c># 多个并发 SMB 连接需要 IO 线程</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>discard</span><span class=p>:</span><span class=w> </span><span class=kc>on</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>async_io</span><span class=p>:</span><span class=w> </span><span class=l>io_uring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 配合 ZFS recordsize=1M 使用，匹配大文件 IO 大小</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>文件服务器以顺序读写为主，writeback 的页缓存能显著加速大文件写入。配合 ZFS 的 ARC 和 SLOG，体验非常好。</p><h3 id=53-轻量级服务dns--nginx--监控>5.3 轻量级服务（DNS / Nginx / 监控）</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>scsihw</span><span class=p>:</span><span class=w> </span><span class=l>virtio-scsi            </span><span class=w> </span><span class=c># 不需要 single, IO 压力小</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>cache</span><span class=p>:</span><span class=w> </span><span class=l>none</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># iothread: 0                  # 不需要额外的 IO 线程</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>discard</span><span class=p>:</span><span class=w> </span><span class=kc>on</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>async_io</span><span class=p>:</span><span class=w> </span><span class=l>io_uring</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 1 vCPU, 512MB RAM 就足够了</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>轻量服务 IO 压力极小，使用默认配置即可。开 IO Thread 反而浪费一个线程上下文切换。</p><h3 id=54-windows-虚拟机>5.4 Windows 虚拟机</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>scsihw</span><span class=p>:</span><span class=w> </span><span class=l>virtio-scsi-single    </span><span class=w> </span><span class=c># Windows 需要安装 virtio-win 驱动</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>cache</span><span class=p>:</span><span class=w> </span><span class=l>none                   </span><span class=w> </span><span class=c># Windows 自身有完善的 flush 机制</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>iothread</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>discard</span><span class=p>:</span><span class=w> </span><span class=kc>on</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 注意：先用 SATA 安装 Windows + virtio-win 驱动，装完切换回 VirtIO SCSI</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>Windows 的 NTFS 文件系统有完善的 write barrier 和日志机制，使用 <code>cache=none</code> 完全安全。但需要注意安装顺序——先挂载 virtio-win ISO 装驱动，否则 Windows 无法识别 VirtIO 控制器。</p><hr><h2 id=6-如何在你自己的环境中测试>6. 如何在你自己的环境中测试</h2><h3 id=61-快速测试脚本>6.1 快速测试脚本</h3><p>在你的 PVE 宿主上，用以下命令可以快速对比两台 VM 的磁盘性能：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在 VM 内执行</span>
+</span></span><span class=line><span class=cl>apt install -y fio
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 随机 4K 读取测试</span>
+</span></span><span class=line><span class=cl>fio --name<span class=o>=</span>randread --ioengine<span class=o>=</span>libaio --iodepth<span class=o>=</span><span class=m>32</span> --rw<span class=o>=</span>randread <span class=se>\
+</span></span></span><span class=line><span class=cl>    --bs<span class=o>=</span>4k --direct<span class=o>=</span><span class=m>1</span> --size<span class=o>=</span>1G --numjobs<span class=o>=</span><span class=m>1</span> --runtime<span class=o>=</span><span class=m>60</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --time_based --group_reporting
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 随机 4K 写入测试</span>
+</span></span><span class=line><span class=cl>fio --name<span class=o>=</span>randwrite --ioengine<span class=o>=</span>libaio --iodepth<span class=o>=</span><span class=m>32</span> --rw<span class=o>=</span>randwrite <span class=se>\
+</span></span></span><span class=line><span class=cl>    --bs<span class=o>=</span>4k --direct<span class=o>=</span><span class=m>1</span> --size<span class=o>=</span>1G --numjobs<span class=o>=</span><span class=m>1</span> --runtime<span class=o>=</span><span class=m>60</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --time_based --group_reporting
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 顺序 1M 读取测试</span>
+</span></span><span class=line><span class=cl>fio --name<span class=o>=</span>seqread --ioengine<span class=o>=</span>libaio --iodepth<span class=o>=</span><span class=m>8</span> --rw<span class=o>=</span><span class=nb>read</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --bs<span class=o>=</span>1m --direct<span class=o>=</span><span class=m>1</span> --size<span class=o>=</span>4G --numjobs<span class=o>=</span><span class=m>1</span> --runtime<span class=o>=</span><span class=m>60</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>    --time_based --group_reporting
+</span></span></code></pre></td></tr></table></div></div><h3 id=62-在-pve-层面查看磁盘-io>6.2 在 PVE 层面查看磁盘 IO</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 查看所有 VM 的实时磁盘 IO</span>
+</span></span><span class=line><span class=cl>pvesh get /cluster/status
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看特定 VM 的磁盘统计</span>
+</span></span><span class=line><span class=cl>qm monitor <span class=m>100</span>   <span class=c1># 假设 VM ID 是 100</span>
+</span></span><span class=line><span class=cl>&gt; info blockstats  <span class=c1># 在 QEMU monitor 中执行</span>
+</span></span><span class=line><span class=cl>&gt; info block  <span class=c1># 查看块设备信息</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=63-使用-dd-快速评估>6.3 使用 dd 快速评估</h3><p>不想装 fio？用 dd 粗略评估：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 写入测试</span>
+</span></span><span class=line><span class=cl>dd <span class=k>if</span><span class=o>=</span>/dev/zero <span class=nv>of</span><span class=o>=</span>/tmp/test <span class=nv>bs</span><span class=o>=</span>1M <span class=nv>count</span><span class=o>=</span><span class=m>2048</span> <span class=nv>conv</span><span class=o>=</span>fdatasync
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 读取测试</span>
+</span></span><span class=line><span class=cl>dd <span class=k>if</span><span class=o>=</span>/tmp/test <span class=nv>of</span><span class=o>=</span>/dev/null <span class=nv>bs</span><span class=o>=</span>1M <span class=nv>count</span><span class=o>=</span><span class=m>2048</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=7-常见踩坑记录>7. 常见踩坑记录</h2><h3 id=-坑-1windows-vm-装完系统才想起没装-virtio-驱动>❌ 坑 1：Windows VM 装完系统才想起没装 VirtIO 驱动</h3><p>Windows 安装过程中按 <strong>F6</strong> 加载第三方的存储驱动？那是旧时代的做法了。在 PVE 8.x 中，正确做法是：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 方法一：挂载 virtio-win ISO 安装</span>
+</span></span><span class=line><span class=cl><span class=c1># 下载地址: https://github.com/virtio-win/virtio-win-pkg-scripts/blob/master/README.md</span>
+</span></span><span class=line><span class=cl><span class=c1># 在 PVE 的 VM 硬件中添加 CD/DVD 驱动 -&gt; 选择 ISO 镜像</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 方法二：创建 VM 时先用 SATA 磁盘 + IDE CDROM</span>
+</span></span><span class=line><span class=cl><span class=c1># 安装完 Windows + virtio-win 驱动包后关机</span>
+</span></span><span class=line><span class=cl><span class=c1># 再改回 VirtIO SCSI + IO Thread</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-2开启-io-thread-后发现磁盘变慢>❌ 坑 2：开启 IO Thread 后发现磁盘变慢</h3><p>如果 IO Thread 反而变慢了，检查两个地方：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 确认没有超分 vCPU (total vCPU &gt; pCPU * 2)</span>
+</span></span><span class=line><span class=cl><span class=c1># 2. 检查是否有足够的 NUMA 节点分配给 VM</span>
+</span></span><span class=line><span class=cl><span class=c1># 某些旧款 CPU 在低队列深度时 IO Thread 开销 &gt; 收益</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-3qcow2--cachenone-的零星数据损坏>❌ 坑 3：qcow2 + cache=none 的零星数据损坏</h3><p>Blockbridge 的技术团队指出，在某些特定情况下 qcow2 格式配合 <code>cache=none</code> 存在已知的 QEMU bug 风险。如果你使用的是 qcow2 格式且数据非常重要：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=c># 安全方案</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 1. 改用 raw 格式（或 zvol + raw）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 2. 或改用 cache=writeback</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 3. 或确保 qemu &gt;= 8.1.0</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=-坑-4discardon-导致-windows-vm-磁盘操作卡顿>❌ 坑 4：<code>discard=on</code> 导致 Windows VM 磁盘操作卡顿</h3><p>某些 Windows 版本（尤其是 Server 2019 之前的版本）在大量 TRIM 操作时会卡 UI。解决方案：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=c># 策略一：去掉 discard</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 策略二：改为 discard=ignore  + 在 Windows 内定期手动优化驱动器</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 策略三：升级到 Windows Server 2022 或 Windows 11</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><hr><h2 id=8-总结>8. 总结</h2><p>经过全面的测试与分析，给不同场景的最终推荐：</p><div class=table-wrapper><table><thead><tr><th>场景</th><th>控制器</th><th>缓存</th><th>IO Thread</th><th>异步 IO</th></tr></thead><tbody><tr><td><strong>通用推荐 (PVE 默认)</strong></td><td>VirtIO SCSI single</td><td>No cache (none)</td><td>✅</td><td>io_uring</td></tr><tr><td><strong>追求极限性能</strong></td><td>VirtIO SCSI single</td><td>Write back</td><td>✅</td><td>io_uring</td></tr><tr><td><strong>数据库</strong></td><td>VirtIO SCSI single</td><td>No cache (none)</td><td>✅</td><td>io_uring</td></tr><tr><td><strong>文件服务器</strong></td><td>VirtIO SCSI single</td><td>Write back</td><td>✅</td><td>io_uring</td></tr><tr><td><strong>轻量服务</strong></td><td>VirtIO SCSI</td><td>No cache (none)</td><td>❌</td><td>io_uring</td></tr><tr><td><strong>Windows 桌面</strong></td><td>VirtIO SCSI single</td><td>No cache (none)</td><td>✅</td><td>io_uring</td></tr></tbody></table></div><h3 id=一句话总结>一句话总结</h3><p><strong>PVE 最新的默认配置（VirtIO SCSI single + cache=none + IO Thread + io_uring）已经是一个很好的通用起点</strong>，兼顾了性能与安全性。除非你有非常明确的需求（数据库需要极致一致性、文件服务器想压榨最后 30% 性能），否则直接使用默认值就好。</p><p>如果你想进一步优化：</p><ol><li><strong>先看瓶颈在哪</strong> — 用 <code>iostat -x 1</code> 在宿主机查看 <code>await</code> 和 <code>%util</code></li><li><strong>先动存储层</strong> — ZFS 的 recordsize、ashift、compression 设置对最终性能的影响往往比缓存模式更大</li><li><strong>最后调虚机层</strong> — 改控制器、缓存、IO Thread 每一步都跑一遍 fio 验证</li></ol><blockquote><p><strong>预告：</strong> 下一篇会深入 PVE ZFS 存储的性能调优——recordsize 选择、ashift 对齐、compression 算法对比以及 SLOG/ZIL 在 NVMe 上的实战配置。</p></blockquote></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>
