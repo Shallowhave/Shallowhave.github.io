@@ -1,0 +1,424 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Homelab 中用 Docker Compose 部署 Immich 私有相册，接入 NAS 存储、反向代理、PostgreSQL 数据库备份与恢复演练，解决照片上云后的隐私和可控性问题。"><title>把相册搬回家：Immich + Docker Compose 搭建私有照片云与备份闭环</title><link rel=canonical href=https://shallowhave.github.io/p/immich-private-photo-cloud/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="把相册搬回家：Immich + Docker Compose 搭建私有照片云与备份闭环"><meta property='og:description' content="在 Homelab 中用 Docker Compose 部署 Immich 私有相册，接入 NAS 存储、反向代理、PostgreSQL 数据库备份与恢复演练，解决照片上云后的隐私和可控性问题。"><meta property='og:url' content='https://shallowhave.github.io/p/immich-private-photo-cloud/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-14T09:01:23+08:00'><meta property='article:modified_time' content='2026-05-14T09:01:23+08:00'><meta name=twitter:title content="把相册搬回家：Immich + Docker Compose 搭建私有照片云与备份闭环"><meta name=twitter:description content="在 Homelab 中用 Docker Compose 部署 Immich 私有相册，接入 NAS 存储、反向代理、PostgreSQL 数据库备份与恢复演练，解决照片上云后的隐私和可控性问题。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-架构设计>1. 架构设计</a></li><li><a href=#2-准备目录>2. 准备目录</a></li><li><a href=#3-编写-env>3. 编写 .env</a></li><li><a href=#4-docker-compose-部署-immich>4. Docker Compose 部署 Immich</a></li><li><a href=#5-接入反向代理>5. 接入反向代理</a></li><li><a href=#6-数据库备份不要只备份照片目录>6. 数据库备份：不要只备份照片目录</a></li><li><a href=#7-恢复演练>7. 恢复演练</a></li><li><a href=#8-日常升级流程>8. 日常升级流程</a></li><li><a href=#9-踩坑记录>9. 踩坑记录</a><ol><li><a href=#-1-nfs-目录没挂载照片写进了本地空目录>❌ 1. NFS 目录没挂载，照片写进了本地空目录</a></li><li><a href=#-2-大视频上传失败>❌ 2. 大视频上传失败</a></li><li><a href=#-3-只备份-upload-目录恢复后相册全乱>❌ 3. 只备份 upload 目录，恢复后相册全乱</a></li><li><a href=#-4-机器学习容器吃-cpu>❌ 4. 机器学习容器吃 CPU</a></li></ol></li><li><a href=#10-安全建议>10. 安全建议</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/immich-private-photo-cloud/>把相册搬回家：Immich + Docker Compose 搭建私有照片云与备份闭环</a></h2><h3 class=article-subtitle>在 Homelab 中用 Docker Compose 部署 Immich 私有相册，接入 NAS 存储、反向代理、PostgreSQL 数据库备份与恢复演练，解决照片上云后的隐私和可控性问题。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 14, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 7 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>Homelab 最容易被家人感知价值的服务，不是 PVE、不是 Grafana，也不是各种炫酷的 Dashboard，而是<strong>照片备份</strong>。</p><p>手机相册长期放在 iCloud、Google Photos 或各种国产云里，确实省心，但也带来几个问题：容量付费、隐私不可控、原图下载麻烦、服务策略随时变化。如果家里已经有一台 NAS 或 Proxmox VE 主机，再自建一套照片云就很自然了。</p><p>这篇文章选择 <strong>Immich</strong>。它的体验接近 Google Photos，支持手机 App 自动备份、时间线浏览、人物识别、地图、相册共享和机器学习搜索。更关键的是：它可以完整运行在 Docker Compose 中，数据落在自己的磁盘上，适合 Homelab 长期维护。</p><p>本文不是简单贴一份 <code>docker-compose.yml</code> 就结束，而是从目录规划、部署、反向代理、备份、恢复演练、踩坑处理几个角度，搭一套能长期运行的私有照片云。</p><hr><h2 id=1-架构设计>1. 架构设计</h2><p>这套部署面向普通 Homelab 环境：一台 Debian/Ubuntu Docker 主机，后端挂载 NAS 或本地大容量磁盘，前端通过反向代理提供 HTTPS。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>手机 App / 浏览器
+</span></span><span class=line><span class=cl>        │
+</span></span><span class=line><span class=cl>        ▼
+</span></span><span class=line><span class=cl>  https://photos.example.com
+</span></span><span class=line><span class=cl>        │
+</span></span><span class=line><span class=cl>        ▼
+</span></span><span class=line><span class=cl>  Traefik / Nginx Proxy Manager
+</span></span><span class=line><span class=cl>        │
+</span></span><span class=line><span class=cl>        ▼
+</span></span><span class=line><span class=cl>  Immich Server + Web + ML
+</span></span><span class=line><span class=cl>        │
+</span></span><span class=line><span class=cl>        ├── PostgreSQL：元数据、相册、用户、任务状态
+</span></span><span class=line><span class=cl>        ├── Redis：队列缓存
+</span></span><span class=line><span class=cl>        └── Upload Library：照片和视频原文件
+</span></span></code></pre></td></tr></table></div></div><p>Immich 里最重要的两类数据：</p><div class=table-wrapper><table><thead><tr><th>数据</th><th>路径/组件</th><th style=text-align:right>重要程度</th><th>备份方式</th></tr></thead><tbody><tr><td>原图、视频、缩略图</td><td><code>UPLOAD_LOCATION</code></td><td style=text-align:right>⭐⭐⭐⭐⭐</td><td>文件级备份 / ZFS 快照 / NAS 同步</td></tr><tr><td>PostgreSQL 数据库</td><td><code>database</code> 容器</td><td style=text-align:right>⭐⭐⭐⭐⭐</td><td><code>pg_dumpall</code> 定时导出</td></tr><tr><td>Redis 队列</td><td><code>redis</code> 容器</td><td style=text-align:right>⭐⭐</td><td>可不备份</td></tr><tr><td>机器学习模型缓存</td><td><code>model-cache</code></td><td style=text-align:right>⭐</td><td>可重建</td></tr></tbody></table></div><blockquote><p>重点：<strong>只备份照片目录是不够的</strong>。相册关系、用户、分享链接、人脸识别结果等都在 PostgreSQL 里，数据库必须一起备份。</p></blockquote><hr><h2 id=2-准备目录>2. 准备目录</h2><p>假设 Docker 服务跑在 <code>/opt/immich</code>，照片数据放到 <code>/mnt/tank/photos/immich</code>。如果你用的是 NAS NFS 挂载，也可以把 <code>UPLOAD_LOCATION</code> 指向 NFS 目录。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo mkdir -p /opt/immich
+</span></span><span class=line><span class=cl>sudo mkdir -p /mnt/tank/photos/immich
+</span></span><span class=line><span class=cl>sudo mkdir -p /mnt/tank/backups/immich-db
+</span></span><span class=line><span class=cl>sudo chown -R <span class=nv>$USER</span>:<span class=nv>$USER</span> /opt/immich /mnt/tank/photos/immich /mnt/tank/backups/immich-db
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /opt/immich
+</span></span></code></pre></td></tr></table></div></div><p>建议把 Immich 的 Compose 文件和 <code>.env</code> 放在 SSD 上，照片库放在 HDD/ZFS 池上。这样数据库和容器启动速度更好，照片容量也更好扩展。</p><p>如果后端是 NFS，挂载建议加上 <code>_netdev</code>，避免开机 Docker 比网络先启动导致目录为空：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=c1># /etc/fstab</span>
+</span></span><span class=line><span class=cl><span class=na>192.168.1.10:/volume1/photos /mnt/tank/photos nfs4 defaults,_netdev,noatime 0 0</span>
+</span></span></code></pre></td></tr></table></div></div><p>修改后验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo mount -a
+</span></span><span class=line><span class=cl>findmnt /mnt/tank/photos
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=3-编写-env>3. 编写 .env</h2><p>先创建环境变量文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/immich
+</span></span><span class=line><span class=cl>openssl rand -base64 <span class=m>32</span>
+</span></span></code></pre></td></tr></table></div></div><p><code>.env</code> 示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl># Immich Web 访问端口，只暴露给反向代理或内网
+</span></span><span class=line><span class=cl>IMMICH_VERSION=release
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl># 照片上传目录，务必放在大容量磁盘或 NAS 上
+</span></span><span class=line><span class=cl>UPLOAD_LOCATION=/mnt/tank/photos/immich
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl># PostgreSQL
+</span></span><span class=line><span class=cl>DB_USERNAME=immich
+</span></span><span class=line><span class=cl>DB_PASSWORD=请替换成上面生成的强密码
+</span></span><span class=line><span class=cl>DB_DATABASE_NAME=immich
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl># 时区
+</span></span><span class=line><span class=cl>TZ=Asia/Shanghai
+</span></span></code></pre></td></tr></table></div></div><p>注意：<code>UPLOAD_LOCATION</code> 不建议放在 <code>/opt/immich</code> 下面。应用配置和用户数据分离，后续迁移、备份、重建都会简单很多。</p><hr><h2 id=4-docker-compose-部署-immich>4. Docker Compose 部署 Immich</h2><p>下面是一份适合 Homelab 的 <code>docker-compose.yml</code>。它没有直接暴露 2283 到公网，而是只绑定到本机，由反向代理转发。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>immich-server</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>immich_server</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>${UPLOAD_LOCATION}:/usr/src/app/upload</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/etc/localtime:/etc/localtime:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>env_file</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>.env</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;127.0.0.1:2283:2283&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>depends_on</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>redis</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>database</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>immich-machine-learning</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>immich_machine_learning</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>model-cache:/cache</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>env_file</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>.env</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>redis</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>docker.io/valkey/valkey:8-bookworm@sha256:fea8b3e67b15729d4bb70589eb03367bab9ad1ee89c876f54327fc7c6e618571</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>immich_redis</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>database</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>immich_postgres</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>POSTGRES_PASSWORD</span><span class=p>:</span><span class=w> </span><span class=l>${DB_PASSWORD}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>POSTGRES_USER</span><span class=p>:</span><span class=w> </span><span class=l>${DB_USERNAME}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>POSTGRES_DB</span><span class=p>:</span><span class=w> </span><span class=l>${DB_DATABASE_NAME}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>POSTGRES_INITDB_ARGS</span><span class=p>:</span><span class=w> </span><span class=s1>&#39;--data-checksums&#39;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>pgdata:/var/lib/postgresql/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>pgdata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>model-cache</span><span class=p>:</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>启动：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/immich
+</span></span><span class=line><span class=cl>docker compose pull
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker compose ps
+</span></span></code></pre></td></tr></table></div></div><p>查看日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker logs -f immich_server
+</span></span><span class=line><span class=cl>docker logs -f immich_machine_learning
+</span></span></code></pre></td></tr></table></div></div><p>确认本机端口可用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -I http://127.0.0.1:2283
+</span></span></code></pre></td></tr></table></div></div><p>浏览器访问 <code>http://宿主机IP:2283</code>，创建管理员账号。确认能上传一张测试照片后，再接反向代理。</p><hr><h2 id=5-接入反向代理>5. 接入反向代理</h2><p>如果你已经有 Traefik，可以把 Immich 放到外部 Docker 网络里，通过 Label 暴露服务。示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker network create traefik-net
+</span></span></code></pre></td></tr></table></div></div><p>Compose 中给 <code>immich-server</code> 增加：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>immich-server</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>default</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>traefik-net</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.enable=true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.immich.rule=Host(`photos.example.com`)&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.immich.entrypoints=websecure&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.routers.immich.tls.certresolver=letsencrypt&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;traefik.http.services.immich.loadbalancer.server.port=2283&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>traefik-net</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>external</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>如果用 Nginx Proxy Manager，后端填写：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Scheme: http
+</span></span><span class=line><span class=cl>Forward Hostname/IP: Docker宿主机IP
+</span></span><span class=line><span class=cl>Forward Port: 2283
+</span></span><span class=line><span class=cl>Websockets Support: Enabled
+</span></span><span class=line><span class=cl>Block Common Exploits: Enabled
+</span></span></code></pre></td></tr></table></div></div><p>反向代理层建议设置上传体积限制，否则大视频可能上传失败。Nginx 示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-nginx data-lang=nginx><span class=line><span class=cl><span class=k>client_max_body_size</span> <span class=mi>0</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=k>proxy_read_timeout</span> <span class=s>600s</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=k>proxy_send_timeout</span> <span class=s>600s</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=k>proxy_request_buffering</span> <span class=no>off</span><span class=p>;</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=6-数据库备份不要只备份照片目录>6. 数据库备份：不要只备份照片目录</h2><p>官方建议对数据库做逻辑备份。最简单可靠的方式是在宿主机定时执行 <code>pg_dumpall</code>。</p><p>创建脚本 <code>/opt/immich/backup-db.sh</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/usr/bin/env bash
+</span></span></span><span class=line><span class=cl><span class=nb>set</span> -euo pipefail
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nv>BACKUP_DIR</span><span class=o>=</span><span class=s2>&#34;/mnt/tank/backups/immich-db&#34;</span>
+</span></span><span class=line><span class=cl><span class=nv>DATE</span><span class=o>=</span><span class=s2>&#34;</span><span class=k>$(</span>date +%F_%H-%M-%S<span class=k>)</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl><span class=nv>KEEP_DAYS</span><span class=o>=</span><span class=m>14</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>mkdir -p <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -t immich_postgres pg_dumpall <span class=se>\
+</span></span></span><span class=line><span class=cl>  --clean <span class=se>\
+</span></span></span><span class=line><span class=cl>  --if-exists <span class=se>\
+</span></span></span><span class=line><span class=cl>  --username<span class=o>=</span><span class=s2>&#34;</span><span class=si>${</span><span class=nv>DB_USERNAME</span><span class=k>:-</span><span class=nv>immich</span><span class=si>}</span><span class=s2>&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=p>|</span> gzip &gt; <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>/immich-db-</span><span class=nv>$DATE</span><span class=s2>.sql.gz&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>find <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>&#34;</span> -type f -name <span class=s1>&#39;immich-db-*.sql.gz&#39;</span> -mtime +<span class=s2>&#34;</span><span class=nv>$KEEP_DAYS</span><span class=s2>&#34;</span> -delete
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>ls -lh <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>&#34;</span> <span class=p>|</span> tail
+</span></span></code></pre></td></tr></table></div></div><p>由于脚本里需要 <code>.env</code> 的变量，更稳的写法是用 <code>docker compose exec</code> 读取当前项目环境：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/usr/bin/env bash
+</span></span></span><span class=line><span class=cl><span class=nb>set</span> -euo pipefail
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /opt/immich
+</span></span><span class=line><span class=cl><span class=nb>set</span> -a
+</span></span><span class=line><span class=cl><span class=nb>source</span> .env
+</span></span><span class=line><span class=cl><span class=nb>set</span> +a
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nv>BACKUP_DIR</span><span class=o>=</span><span class=s2>&#34;/mnt/tank/backups/immich-db&#34;</span>
+</span></span><span class=line><span class=cl><span class=nv>DATE</span><span class=o>=</span><span class=s2>&#34;</span><span class=k>$(</span>date +%F_%H-%M-%S<span class=k>)</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl>mkdir -p <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -t immich_postgres pg_dumpall <span class=se>\
+</span></span></span><span class=line><span class=cl>  --clean --if-exists <span class=se>\
+</span></span></span><span class=line><span class=cl>  --username<span class=o>=</span><span class=s2>&#34;</span><span class=nv>$DB_USERNAME</span><span class=s2>&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=p>|</span> gzip &gt; <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>/immich-db-</span><span class=nv>$DATE</span><span class=s2>.sql.gz&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>find <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>&#34;</span> -type f -name <span class=s1>&#39;immich-db-*.sql.gz&#39;</span> -mtime +14 -delete
+</span></span></code></pre></td></tr></table></div></div><p>授权并测试：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>chmod +x /opt/immich/backup-db.sh
+</span></span><span class=line><span class=cl>/opt/immich/backup-db.sh
+</span></span><span class=line><span class=cl>ls -lh /mnt/tank/backups/immich-db/
+</span></span></code></pre></td></tr></table></div></div><p>加入定时任务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>crontab -e
+</span></span></code></pre></td></tr></table></div></div><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=c1># 每天凌晨 03:30 备份 Immich PostgreSQL</span>
+</span></span><span class=line><span class=cl><span class=mi>30</span> <span class=mi>3</span> <span class=o>*</span> <span class=o>*</span> <span class=o>*</span> <span class=o>/</span><span class=n>opt</span><span class=o>/</span><span class=n>immich</span><span class=o>/</span><span class=n>backup</span><span class=o>-</span><span class=n>db</span><span class=o>.</span><span class=n>sh</span> <span class=o>&gt;&gt;</span> <span class=o>/</span><span class=k>var</span><span class=o>/</span><span class=nb>log</span><span class=o>/</span><span class=n>immich</span><span class=o>-</span><span class=n>db</span><span class=o>-</span><span class=n>backup</span><span class=o>.</span><span class=n>log</span> <span class=mi>2</span><span class=o>&gt;&amp;</span><span class=mi>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>照片目录可以用 ZFS 快照、restic、rsync 或 NAS 自带快照。ZFS 示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 每天快照</span>
+</span></span><span class=line><span class=cl>zfs snapshot tank/photos@immich-<span class=k>$(</span>date +%F<span class=k>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看快照</span>
+</span></span><span class=line><span class=cl>zfs list -t snapshot <span class=p>|</span> grep immich
+</span></span></code></pre></td></tr></table></div></div><p>如果你没有 ZFS，用 <code>rsync</code> 同步到另一块盘也比没有强：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>rsync -aHAX --delete --info<span class=o>=</span>progress2 <span class=se>\
+</span></span></span><span class=line><span class=cl>  /mnt/tank/photos/immich/ <span class=se>\
+</span></span></span><span class=line><span class=cl>  /mnt/backup/photos/immich/
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=7-恢复演练>7. 恢复演练</h2><p>备份没有恢复过，就等于没有备份。建议在另一台测试机或临时目录做一次恢复演练。</p><p>停止服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/immich
+</span></span><span class=line><span class=cl>docker compose down
+</span></span></code></pre></td></tr></table></div></div><p>如果是全新机器，先恢复照片目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>rsync -aHAX /mnt/backup/photos/immich/ /mnt/tank/photos/immich/
+</span></span></code></pre></td></tr></table></div></div><p>启动数据库容器，但先不要让 Immich 正常对外使用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose up -d database redis
+</span></span></code></pre></td></tr></table></div></div><p>恢复 SQL：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>gunzip &lt; /mnt/tank/backups/immich-db/immich-db-2026-05-14_03-30-00.sql.gz <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=p>|</span> docker <span class=nb>exec</span> -i immich_postgres psql --username<span class=o>=</span>immich --dbname<span class=o>=</span>postgres
+</span></span></code></pre></td></tr></table></div></div><p>再启动全部服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker compose logs -f immich_server
+</span></span></code></pre></td></tr></table></div></div><p>恢复后检查三件事：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 容器状态</span>
+</span></span><span class=line><span class=cl>docker compose ps
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 上传目录是否有文件</span>
+</span></span><span class=line><span class=cl>du -sh /mnt/tank/photos/immich
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. Web 是否返回</span>
+</span></span><span class=line><span class=cl>curl -I http://127.0.0.1:2283
+</span></span></code></pre></td></tr></table></div></div><p>最后登录网页确认相册、人物、分享链接是否正常。演练时发现问题，比硬盘真挂时才发现强太多。</p><hr><h2 id=8-日常升级流程>8. 日常升级流程</h2><p>Immich 更新比较频繁，不建议无脑 Watchtower 自动升级。更稳的流程是：先备份数据库，再拉镜像，再重启。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/immich
+</span></span><span class=line><span class=cl>./backup-db.sh
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker compose pull
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker image prune -f
+</span></span></code></pre></td></tr></table></div></div><p>升级后看日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose logs --tail<span class=o>=</span><span class=m>200</span> immich-server
+</span></span><span class=line><span class=cl>docker compose ps
+</span></span></code></pre></td></tr></table></div></div><p>如果升级后异常，先不要删除旧镜像和备份。可以回退 <code>.env</code> 里的 <code>IMMICH_VERSION</code> 到上一个版本，再 <code>docker compose up -d</code>。</p><hr><h2 id=9-踩坑记录>9. 踩坑记录</h2><h3 id=-1-nfs-目录没挂载照片写进了本地空目录>❌ 1. NFS 目录没挂载，照片写进了本地空目录</h3><p>现象：NAS 重启后 Docker 先启动，<code>/mnt/tank/photos</code> 变成本地空目录，Immich 继续往里面写数据。</p><p>修复：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>findmnt /mnt/tank/photos <span class=o>||</span> systemctl restart remote-fs.target
+</span></span><span class=line><span class=cl>docker compose restart immich-server
+</span></span></code></pre></td></tr></table></div></div><p>长期方案：fstab 加 <code>_netdev</code>，并让 Docker 服务依赖远程文件系统：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo systemctl edit docker
+</span></span></code></pre></td></tr></table></div></div><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=k>[Unit]</span>
+</span></span><span class=line><span class=cl><span class=na>After</span><span class=o>=</span><span class=s>network-online.target remote-fs.target</span>
+</span></span><span class=line><span class=cl><span class=na>Wants</span><span class=o>=</span><span class=s>network-online.target</span>
+</span></span><span class=line><span class=cl><span class=na>RequiresMountsFor</span><span class=o>=</span><span class=s>/mnt/tank/photos</span>
+</span></span></code></pre></td></tr></table></div></div><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo systemctl daemon-reload
+</span></span><span class=line><span class=cl>sudo systemctl restart docker
+</span></span></code></pre></td></tr></table></div></div><h3 id=-2-大视频上传失败>❌ 2. 大视频上传失败</h3><p>通常是反向代理限制了 body size 或 timeout。Nginx 加：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-nginx data-lang=nginx><span class=line><span class=cl><span class=k>client_max_body_size</span> <span class=mi>0</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=k>proxy_read_timeout</span> <span class=s>600s</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=k>proxy_send_timeout</span> <span class=s>600s</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=k>proxy_request_buffering</span> <span class=no>off</span><span class=p>;</span>
+</span></span></code></pre></td></tr></table></div></div><p>Traefik 一般不限制 body size，但如果前面还有 Cloudflare，需要注意上传大小限制。</p><h3 id=-3-只备份-upload-目录恢复后相册全乱>❌ 3. 只备份 upload 目录，恢复后相册全乱</h3><p>原图还在，但用户、相册、分享链接、人物识别都丢了。原因是数据库没备份。解决方式就是本文第 6 节：照片目录 + PostgreSQL 逻辑备份必须成对存在。</p><h3 id=-4-机器学习容器吃-cpu>❌ 4. 机器学习容器吃 CPU</h3><p>初次导入大量照片时，缩略图、元数据提取、人脸识别会让 CPU 飙升。这不是异常。建议第一次导入放在夜间，或者临时降低并发任务数量。</p><p>可以在后台任务页面观察队列，也可以看容器资源：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker stats immich_server immich_machine_learning immich_postgres
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=10-安全建议>10. 安全建议</h2><p>Immich 不是只给自己看的静态网页，它有登录、上传、分享和移动端同步，所以安全边界要认真处理：</p><div class=table-wrapper><table><thead><tr><th>项目</th><th>建议</th></tr></thead><tbody><tr><td>HTTPS</td><td>必须启用，移动 App 同步也走 HTTPS</td></tr><tr><td>管理员密码</td><td>使用密码管理器生成强密码</td></tr><tr><td>公网暴露</td><td>优先走 WireGuard / Tailscale；公网开放时必须及时升级</td></tr><tr><td>数据库端口</td><td>不要映射到公网，只在 Docker 网络内访问</td></tr><tr><td>备份</td><td>数据库备份 + 原图备份 + 恢复演练三件套</td></tr><tr><td>更新</td><td>手动升级，不建议无脑自动更新</td></tr></tbody></table></div><p>如果只是家庭成员使用，最稳的是：Immich 只监听内网，通过 WireGuard 回家访问。这样攻击面比直接暴露公网小很多。</p><hr><h2 id=总结>总结</h2><p>Immich 是目前 Homelab 里非常值得部署的服务：用户体验好，家人能直接感受到价值，也能把照片数据重新拿回自己手里。但它不是“起一个容器就完事”的玩具服务，真正长期运行要注意三个点：</p><ol><li><strong>存储规划</strong>：照片目录放大容量盘，配置和数据库独立管理；</li><li><strong>备份闭环</strong>：原图目录和 PostgreSQL 必须同时备份；</li><li><strong>恢复演练</strong>：至少做一次从数据库备份和照片目录恢复的完整测试。</li></ol><p>我的建议是：先在内网跑通，再接反向代理；先导入少量照片测试，再迁移全量相册；先把备份脚本和恢复流程写好，再放心让手机自动同步。Homelab 的核心不是“服务跑起来”，而是“服务坏了还能救回来”。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

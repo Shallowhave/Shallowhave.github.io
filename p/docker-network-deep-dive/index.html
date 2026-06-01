@@ -1,0 +1,406 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="手把手玩转 Docker 六种网络模式：Bridge、Host、None、Macvlan、IPvlan、Overlay，配合真实 Homelab 场景的配置案例、命令实测与踩坑记录。"><title>Docker 网络完全指南：从 Bridge 到 Macvlan，打通 Homelab 容器网络任督二脉</title><link rel=canonical href=https://shallowhave.github.io/p/docker-network-deep-dive/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Docker 网络完全指南：从 Bridge 到 Macvlan，打通 Homelab 容器网络任督二脉"><meta property='og:description' content="手把手玩转 Docker 六种网络模式：Bridge、Host、None、Macvlan、IPvlan、Overlay，配合真实 Homelab 场景的配置案例、命令实测与踩坑记录。"><meta property='og:url' content='https://shallowhave.github.io/p/docker-network-deep-dive/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-27T09:00:00+08:00'><meta property='article:modified_time' content='2026-05-27T09:00:00+08:00'><meta name=twitter:title content="Docker 网络完全指南：从 Bridge 到 Macvlan，打通 Homelab 容器网络任督二脉"><meta name=twitter:description content="手把手玩转 Docker 六种网络模式：Bridge、Host、None、Macvlan、IPvlan、Overlay，配合真实 Homelab 场景的配置案例、命令实测与踩坑记录。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#0-先看拓扑>0. 先看拓扑</a></li><li><a href=#1-bridge--默认模式够用但有限>1. Bridge — 默认模式，够用但有限</a><ol><li><a href=#工作原理>工作原理</a></li><li><a href=#最常见的坑端口映射>最常见的坑：端口映射</a></li><li><a href=#自定义-bridge-才是正确姿势>自定义 Bridge 才是正确姿势</a></li><li><a href=#iptables-与端口映射的隐患>iptables 与端口映射的隐患</a></li><li><a href=#什么时候用-bridge>什么时候用 Bridge</a></li></ol></li><li><a href=#2-host--性能为王隔离牺牲>2. Host — 性能为王，隔离牺牲</a><ol><li><a href=#优点>优点</a></li><li><a href=#坑点>坑点</a></li><li><a href=#什么时候用-host>什么时候用 Host</a></li></ol></li><li><a href=#3-none--彻底隔离>3. None — 彻底隔离</a></li><li><a href=#4-macvlan--让容器拥有真实ip>4. Macvlan — 让容器拥有「真实」IP</a><ol><li><a href=#为什么需要-macvlan>为什么需要 Macvlan</a></li><li><a href=#macvlan-模式-vs-bridge-模式>Macvlan 模式 VS Bridge 模式</a></li><li><a href=#最大的坑宿主机无法访问-macvlan-容器>最大的坑：宿主机无法访问 Macvlan 容器</a></li><li><a href=#什么时候用-macvlan>什么时候用 Macvlan</a></li></ol></li><li><a href=#5-ipvlan--更轻量没有-mac-地址风暴>5. IPvlan — 更轻量，没有 MAC 地址风暴</a><ol><li><a href=#为什么需要-ipvlan>为什么需要 IPvlan</a></li><li><a href=#ipvlan-l2-vs-l3-模式>IPvlan L2 vs L3 模式</a></li><li><a href=#macvlan-vs-ipvlan-选择指南>Macvlan vs IPvlan 选择指南</a></li></ol></li><li><a href=#6-overlay--跨宿主机容器通信>6. Overlay — 跨宿主机容器通信</a><ol><li><a href=#overlay-网络关键踩坑>Overlay 网络关键踩坑</a></li><li><a href=#什么时候用-overlay>什么时候用 Overlay</a></li></ol></li><li><a href=#7-实战homelab-docker-网络统一方案>7. 实战：Homelab Docker 网络统一方案</a></li><li><a href=#8-网络排障速查表>8. 网络排障速查表</a></li><li><a href=#9-总结>9. 总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/docker-network-deep-dive/>Docker 网络完全指南：从 Bridge 到 Macvlan，打通 Homelab 容器网络任督二脉</a></h2><h3 class=article-subtitle>手把手玩转 Docker 六种网络模式：Bridge、Host、None、Macvlan、IPvlan、Overlay，配合真实 Homelab 场景的配置案例、命令实测与踩坑记录。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 27, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 9 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>在 Homelab 里跑 Docker 容器多了，总会在某个深夜遇到这样的问题：</p><ul><li>容器里的服务能 curl 到外面，但从局域网其他机器就是访问不了</li><li>两个容器想互相通信，<code>localhost</code> 不行，<code>--link</code> 又提示 deprecated</li><li>想让某个容器拿一个和宿主机同网段的 IP，方便用局域网其他服务直接访问</li><li>跨两台 PVE 虚拟机上的容器之间该怎么互相发现？</li></ul><p><strong>这些问题的本质，都是没搞懂 Docker 网络模型。</strong></p><p>Docker 提供了六种网络驱动（Network Driver），每种对应不同的隔离级别和通信方式。很多教程只讲 <code>bridge</code> 和 <code>host</code>，但在真实的 Homelab 环境中——特别是当你要整合 PVE、NAS、多台宿主机时——Macvlan、IPvlan、Overlay 才是真正解决问题的工具。</p><p>本文从一个 Homelab 常见拓扑出发，逐个拆解 Docker 网络模式，每个模式都附带可复现的配置命令和踩坑记录。</p><h2 id=0-先看拓扑>0. 先看拓扑</h2><p>假设你的 Homelab 网络如下：</p><div class=table-wrapper><table><thead><tr><th>设备</th><th>IP</th><th>角色</th></tr></thead><tbody><tr><td>PVE 宿主机</td><td>192.168.1.10</td><td>运行 Docker</td></tr><tr><td>PVE 宿主机 2</td><td>192.168.1.11</td><td>运行 Docker</td></tr><tr><td>NAS</td><td>192.168.1.20</td><td>NFS/Samba</td></tr><tr><td>你的电脑</td><td>192.168.1.100</td><td>日常使用</td></tr></tbody></table></div><p>局域网网段: <code>192.168.1.0/24</code>，网关 <code>192.168.1.1</code>。</p><p>我们要解决的核心问题是：<strong>容器如何优雅地与这个局域网交互？</strong></p><h2 id=1-bridge--默认模式够用但有限>1. Bridge — 默认模式，够用但有限</h2><h3 id=工作原理>工作原理</h3><p>当你 <code>docker run</code> 什么参数都不加网络时，Docker 会自动把容器挂到 <code>docker0</code> (默认) 或自定义 bridge 上。每个容器得到一个 <code>172.x.x.x</code> 的内部 IP，通过 NAT 访问外部网络。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>容器A (172.17.0.2) → docker0 (NAT) → eth0 (192.168.1.10) → 局域网
+</span></span></code></pre></td></tr></table></div></div><h3 id=最常见的坑端口映射>最常见的坑：端口映射</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run -d --name nginx -p 8080:80 nginx
+</span></span></code></pre></td></tr></table></div></div><p>从局域网其他机器访问 <code>192.168.1.10:8080</code> → 没问题。<br>但如果 Nginx 要访问局域网另一台机器的某个端口？容器里拿到的 IP 是 <code>172.17.0.2</code>，外面不认识。</p><p><strong>解决方案一：用 <code>--network=host</code>（见后文）</strong><br><strong>解决方案二：用自定义 bridge，指定 subnet</strong></p><h3 id=自定义-bridge-才是正确姿势>自定义 Bridge 才是正确姿势</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 创建自定义 bridge，而不是用默认的 docker0</span>
+</span></span><span class=line><span class=cl>docker network create --driver bridge <span class=se>\
+</span></span></span><span class=line><span class=cl>  --subnet<span class=o>=</span>172.20.0.0/24 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --gateway<span class=o>=</span>172.20.0.1 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --ip-range<span class=o>=</span>172.20.0.0/25 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --label<span class=o>=</span><span class=nv>env</span><span class=o>=</span>homelab <span class=se>\
+</span></span></span><span class=line><span class=cl>  homelab-net
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 运行容器时指定</span>
+</span></span><span class=line><span class=cl>docker run -d --name nginx <span class=se>\
+</span></span></span><span class=line><span class=cl>  --network homelab-net <span class=se>\
+</span></span></span><span class=line><span class=cl>  -p 8080:80 <span class=se>\
+</span></span></span><span class=line><span class=cl>  nginx:alpine
+</span></span></code></pre></td></tr></table></div></div><p>自定义 bridge 比默认 <code>docker0</code> 好的地方：</p><ol><li><strong>容器间 DNS 自动解析</strong> — 在自定义 bridge 上的容器可以 <code>ping nginx</code> 用名字互相发现</li><li><strong>可自定义 subnet</strong> — 避免与真实局域网或 VPN 冲突</li><li><strong>可以随时加容器</strong> — 但一旦建好就不能改 subnet（重建即可）</li></ol><h3 id=iptables-与端口映射的隐患>iptables 与端口映射的隐患</h3><p><code>-p 8080:80</code> 底层是通过 iptables DNAT 实现的。如果你在 PVE 上有其他 iptables 规则（比如之前文章提过的 WireGuard 规则），就可能出现端口映射不生效的情况：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 排查端口映射是否生效</span>
+</span></span><span class=line><span class=cl>iptables -t nat -L -n <span class=p>|</span> grep <span class=m>8080</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Docker 默认会写入 DOCKER 链</span>
+</span></span><span class=line><span class=cl>iptables -t nat -L DOCKER -n
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 如果发现规则被其他策略覆盖，检查 FORWARD 链默认策略</span>
+</span></span><span class=line><span class=cl>iptables -L FORWARD -n
+</span></span></code></pre></td></tr></table></div></div><blockquote><p><strong>踩坑记录</strong>：某次我在 PVE 上启用了 <code>ufw</code> 并设置了 <code>DEFAULT_FORWARD_POLICY=DROP</code>，所有 <code>-p</code> 映射全部失效，容器能出不能进。解决方法：<code>sysctl net.ipv4.ip_forward=1</code> + 确保 FORWARD ACCEPT。</p></blockquote><h3 id=什么时候用-bridge>什么时候用 Bridge</h3><ul><li>绝大多数 Web 服务（Grafana、Traefik、Home Assistant）</li><li>不需要局域网直接访问，走反向代理统一入口</li><li>容器间通过名字发现即可</li></ul><h2 id=2-host--性能为王隔离牺牲>2. Host — 性能为王，隔离牺牲</h2><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run -d --name nginx <span class=se>\
+</span></span></span><span class=line><span class=cl>  --network host <span class=se>\
+</span></span></span><span class=line><span class=cl>  nginx:alpine
+</span></span></code></pre></td></tr></table></div></div><p>容器直接共享宿主机的网络栈，没有 NAT，没有虚拟网桥，性能最好。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># Host 模式下，容器里的 80 端口就是宿主机的 80 端口</span>
+</span></span><span class=line><span class=cl><span class=c1># 不需要 -p 映射</span>
+</span></span><span class=line><span class=cl>ss -tlnp <span class=p>|</span> grep :80
+</span></span><span class=line><span class=cl><span class=c1># 你会看到 nginx 的进程直接监听在 0.0.0.0:80</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=优点>优点</h3><ul><li>零网络开销，延迟最低</li><li>容器可以访问宿主机所有网络接口</li><li>端口不冲突时部署最简单</li></ul><h3 id=坑点>坑点</h3><ul><li><strong>端口冲突</strong>：一个 Host 模式容器占用了 80 端口，第二个就没法用了</li><li><strong>丧失了网络隔离</strong>：容器可以监听任意端口，权限等同于宿主机进程</li><li><strong>Docker DNS 失效</strong>：如果依赖 <code>docker-compose</code> 的 service name 解析，Host 模式下不生效</li></ul><h3 id=什么时候用-host>什么时候用 Host</h3><ul><li>网络性能敏感的服务（如 Jellyfin 硬件转码 + 高码率流）</li><li>需要直接操作宿主机网络接口的工具（如 WireGuard、netdata 的某些插件）</li><li>单容器单服务的极简部署</li></ul><h2 id=3-none--彻底隔离>3. None — 彻底隔离</h2><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run -d --name isolated <span class=se>\
+</span></span></span><span class=line><span class=cl>  --network none <span class=se>\
+</span></span></span><span class=line><span class=cl>  alpine sleep <span class=m>3600</span>
+</span></span></code></pre></td></tr></table></div></div><p>容器里只有 loopback 接口，没有任何网络能力。用于：</p><ul><li>只处理本地文件，不需要网络的批处理任务</li><li>安全敏感的离线计算（如 GPG 签名）</li><li>自定义网络的起点：先 <code>--network none</code>，再手动把容器进程挪进自定义 netns</li></ul><h2 id=4-macvlan--让容器拥有真实ip>4. Macvlan — 让容器拥有「真实」IP</h2><p>这是 Homelab 里最实用也最容易被误解的模式。</p><h3 id=为什么需要-macvlan>为什么需要 Macvlan</h3><p>Bridge 模式下，容器走 NAT，局域网其他设备无法直接访问容器——除非你为每个服务配置 <code>-p</code> 映射并记住一堆端口号。</p><p>Macvlan 给每个容器分配一个 <strong>宿主机同网段的真实 IP</strong>，以及一个 <strong>虚拟 MAC 地址</strong>。对局域网来说，容器就像一台独立的物理机。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 创建 macvlan 网络（连接到宿主机 eth0）</span>
+</span></span><span class=line><span class=cl>docker network create -d macvlan <span class=se>\
+</span></span></span><span class=line><span class=cl>  --subnet<span class=o>=</span>192.168.1.0/24 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --gateway<span class=o>=</span>192.168.1.1 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --ip-range<span class=o>=</span>192.168.1.200/28 <span class=se>\
+</span></span></span><span class=line><span class=cl>  -o <span class=nv>parent</span><span class=o>=</span>eth0 <span class=se>\
+</span></span></span><span class=line><span class=cl>  macvlan-net
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 启动容器，自动分配 192.168.1.200-192.168.1.215 之间的 IP</span>
+</span></span><span class=line><span class=cl>docker run -d --name nginx-macvlan <span class=se>\
+</span></span></span><span class=line><span class=cl>  --network macvlan-net <span class=se>\
+</span></span></span><span class=line><span class=cl>  --ip<span class=o>=</span>192.168.1.201 <span class=se>\
+</span></span></span><span class=line><span class=cl>  nginx:alpine
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 现在从你的电脑 192.168.1.100 直接访问 192.168.1.201:80</span>
+</span></span><span class=line><span class=cl><span class=c1># 不需要任何端口映射！</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=macvlan-模式-vs-bridge-模式>Macvlan 模式 VS Bridge 模式</h3><div class=table-wrapper><table><thead><tr><th>特性</th><th>Bridge + -p</th><th>Macvlan</th></tr></thead><tbody><tr><td>容器 IP</td><td>172.x.x.x 内网</td><td>192.168.1.x 同网段</td></tr><tr><td>端口映射</td><td>需要 <code>-p</code></td><td>不需要</td></tr><tr><td>局域网直接访问</td><td>需端口转发</td><td>✅ 就像独立设备</td></tr><tr><td>性能</td><td>有 NAT 开销</td><td>接近原生</td></tr><tr><td>容器内 ping 网关</td><td>✅</td><td>✅</td></tr><tr><td>宿主机访问容器</td><td>❌ 默认不能</td><td>❌ 默认不能</td></tr></tbody></table></div><h3 id=最大的坑宿主机无法访问-macvlan-容器>最大的坑：宿主机无法访问 Macvlan 容器</h3><p>这一点踩的人最多。</p><p>创建 Macvlan 网络后，<strong>宿主机无法直接通过 Macvlan 容器的 IP 访问它</strong>。原因：宿主机网卡 <code>eth0</code> 被配置了 Macvlan 子接口，Linux 网络栈会把发往容器 MAC 地址的包直接交给子接口，绕过了主接口的 IP 栈。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 从宿主机访问 macvlan 容器会失败</span>
+</span></span><span class=line><span class=cl>curl http://192.168.1.201:80  <span class=c1># ❌ 超时</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 但从另一台机器（包括其他 PVE 虚拟机）可以访问</span>
+</span></span></code></pre></td></tr></table></div></div><p><strong>解决方案：创建一个 macvlan bridge 子接口</strong></p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在宿主机上创建一个 macvlan slave 接口</span>
+</span></span><span class=line><span class=cl>ip link add macvlan-host link eth0 <span class=nb>type</span> macvlan mode bridge
+</span></span><span class=line><span class=cl>ip addr add 192.168.1.199/32 dev macvlan-host
+</span></span><span class=line><span class=cl>ip link <span class=nb>set</span> macvlan-host up
+</span></span><span class=line><span class=cl>ip route add 192.168.1.200/28 dev macvlan-host
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 现在宿主机可以访问 macvlan 容器了</span>
+</span></span><span class=line><span class=cl>curl http://192.168.1.201:80  <span class=c1># ✅ 成功</span>
+</span></span></code></pre></td></tr></table></div></div><p><strong>更简单的方案</strong>：把这条命令写到 <code>systemd</code> 服务自动执行，或者直接放进 PVE 宿主机开机脚本。</p><h3 id=什么时候用-macvlan>什么时候用 Macvlan</h3><ul><li>DHCP 需要分配真实 IP（如 DNS 服务器、DHCP 服务器）</li><li>局域网其他设备（如 NAS、电视、手机 App）需要直接访问容器 IP</li><li>服务本身不支持端口映射或需要固定端口映射但不想管理端口表</li></ul><h2 id=5-ipvlan--更轻量没有-mac-地址风暴>5. IPvlan — 更轻量，没有 MAC 地址风暴</h2><p>IPvlan 是 Macvlan 的进化版：所有容器共享宿主机同一个 MAC 地址，但各自拥有独立的 IP 地址。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 创建 IPvlan（L2 模式）</span>
+</span></span><span class=line><span class=cl>docker network create -d ipvlan <span class=se>\
+</span></span></span><span class=line><span class=cl>  --subnet<span class=o>=</span>192.168.1.0/24 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --gateway<span class=o>=</span>192.168.1.1 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --ip-range<span class=o>=</span>192.168.1.220/28 <span class=se>\
+</span></span></span><span class=line><span class=cl>  -o <span class=nv>parent</span><span class=o>=</span>eth0 <span class=se>\
+</span></span></span><span class=line><span class=cl>  -o <span class=nv>ipvlan_mode</span><span class=o>=</span>l2 <span class=se>\
+</span></span></span><span class=line><span class=cl>  ipvlan-net
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker run -d --name nginx-ipvlan <span class=se>\
+</span></span></span><span class=line><span class=cl>  --network ipvlan-net <span class=se>\
+</span></span></span><span class=line><span class=cl>  --ip<span class=o>=</span>192.168.1.221 <span class=se>\
+</span></span></span><span class=line><span class=cl>  nginx:alpine
+</span></span></code></pre></td></tr></table></div></div><h3 id=为什么需要-ipvlan>为什么需要 IPvlan</h3><p>高密度容器场景（几十上百个容器），Macvlan 会消耗大量 MAC 地址，可能导致交换机 MAC 表溢出。IPvlan 只用一个物理 MAC，从根源上解决这个问题。</p><h3 id=ipvlan-l2-vs-l3-模式>IPvlan L2 vs L3 模式</h3><ul><li><strong>L2 模式</strong>：容器与宿主机在同一广播域，ARP 解析由本地交换机处理</li><li><strong>L3 模式</strong>：Docker 做三层路由，容器之间跨子网通信经过宿主机路由表</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># L3 模式示例：不同子网</span>
+</span></span><span class=line><span class=cl>docker network create -d ipvlan <span class=se>\
+</span></span></span><span class=line><span class=cl>  --subnet<span class=o>=</span>10.0.1.0/24 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --subnet<span class=o>=</span>10.0.2.0/24 <span class=se>\
+</span></span></span><span class=line><span class=cl>  -o <span class=nv>parent</span><span class=o>=</span>eth0 <span class=se>\
+</span></span></span><span class=line><span class=cl>  -o <span class=nv>ipvlan_mode</span><span class=o>=</span>l3 <span class=se>\
+</span></span></span><span class=line><span class=cl>  ipvlan-l3-net
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># L3 模式下，容器之间的跨子网通信走宿主机路由</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=macvlan-vs-ipvlan-选择指南>Macvlan vs IPvlan 选择指南</h3><div class=table-wrapper><table><thead><tr><th>场景</th><th>推荐</th></tr></thead><tbody><tr><td>&lt; 10 个容器，需要独立 MAC</td><td>Macvlan</td></tr><tr><td>10+ 容器，只想拿独立 IP</td><td>IPvlan L2</td></tr><tr><td>跨子网路由，没有 VLAN 隔离需求</td><td>IPvlan L3</td></tr><tr><td>宿主机需要访问容器</td><td>Macvlan + 子接口或 IPvlan 都行，都有类似限制</td></tr></tbody></table></div><h2 id=6-overlay--跨宿主机容器通信>6. Overlay — 跨宿主机容器通信</h2><p>当你的 Homelab 扩展到两台以上 PVE 宿主机，每台都运行 Docker，容器之间需要互通时，Overlay 就是答案。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 第一步：需要初始化 Swarm 模式（即便只用一个 manager 节点）</span>
+</span></span><span class=line><span class=cl>docker swarm init --advertise-addr<span class=o>=</span>192.168.1.10
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 第二步：创建 overlay 网络</span>
+</span></span><span class=line><span class=cl>docker network create -d overlay <span class=se>\
+</span></span></span><span class=line><span class=cl>  --subnet<span class=o>=</span>10.0.100.0/24 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --attachable <span class=se>\
+</span></span></span><span class=line><span class=cl>  homelab-overlay
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 在其他节点加入 swarm</span>
+</span></span><span class=line><span class=cl>docker swarm join --token &lt;manager-token&gt; 192.168.1.10:2377
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 第三步：启动服务 —— 注意 overlay 只支持 swarm service 或 attachable 模式</span>
+</span></span><span class=line><span class=cl>docker service create <span class=se>\
+</span></span></span><span class=line><span class=cl>  --name whoami <span class=se>\
+</span></span></span><span class=line><span class=cl>  --network homelab-overlay <span class=se>\
+</span></span></span><span class=line><span class=cl>  --replicas <span class=m>2</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  traefik/whoami
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 或者用 compose + attachable overlay</span>
+</span></span><span class=line><span class=cl>docker run -d --name alpine-overlay <span class=se>\
+</span></span></span><span class=line><span class=cl>  --network homelab-overlay <span class=se>\
+</span></span></span><span class=line><span class=cl>  alpine sleep <span class=m>3600</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=overlay-网络关键踩坑>Overlay 网络关键踩坑</h3><p><strong>1. 防火墙必须放行 VXLAN 端口</strong></p><p>Overlay 底层用 VXLAN 封装（UDP 4789），跨宿主机通信必须放通：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># PVE 宿主机上</span>
+</span></span><span class=line><span class=cl>iptables -A INPUT -p udp --dport <span class=m>4789</span> -j ACCEPT
+</span></span><span class=line><span class=cl>iptables -A FORWARD -p udp --dport <span class=m>4789</span> -j ACCEPT
+</span></span></code></pre></td></tr></table></div></div><p><strong>2. 需要全连接的网络拓扑</strong></p><p>Overlay 依赖底层网络全连接——每对 Docker 宿主机之间都能通信。如果两台 PVE 宿主机之间做了 VLAN 隔离或防火墙限制，VXLAN 包传不过去。</p><p><strong>3. 性能损耗</strong></p><p>VXLAN 封装/解封装有约 5-10% 的性能损耗。IO 敏感的服务（如数据库）不要走 Overlay，用 Macvlan 或直接 Host 模式更好。</p><h3 id=什么时候用-overlay>什么时候用 Overlay</h3><ul><li>多台 Docker 宿主机上的容器需要服务发现</li><li>不想暴露端口到宿主机网络</li><li>使用 Docker Swarm 或 Compose + attachable overlay</li></ul><h2 id=7-实战homelab-docker-网络统一方案>7. 实战：Homelab Docker 网络统一方案</h2><p>结合以上所有模式，这里给出一个我在用的实际配置方案：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span><span class=lnt>54
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=c># docker-compose.yml</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;3.8&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c># 1. 公共服务网 — Bridge，用于 Web 服务通过反向代理访问</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>webnet</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>driver</span><span class=p>:</span><span class=w> </span><span class=l>bridge</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ipam</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>config</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=nt>subnet</span><span class=p>:</span><span class=w> </span><span class=m>172.20.0.0</span><span class=l>/24</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c># 2. 内部后端网 — Bridge，数据库和中间件之间互通</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>backend</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>driver</span><span class=p>:</span><span class=w> </span><span class=l>bridge</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ipam</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>config</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=nt>subnet</span><span class=p>:</span><span class=w> </span><span class=m>172.20.1.0</span><span class=l>/24</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c># 3. 局域网直连网 — Macvlan，让某些容器获得独立局域网 IP</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>macvlan-net</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>driver</span><span class=p>:</span><span class=w> </span><span class=l>macvlan</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>driver_opts</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>parent</span><span class=p>:</span><span class=w> </span><span class=l>eth0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ipam</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>config</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=nt>subnet</span><span class=p>:</span><span class=w> </span><span class=m>192.168.1.0</span><span class=l>/24</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>ip_range</span><span class=p>:</span><span class=w> </span><span class=m>192.168.1.230</span><span class=l>/28</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>gateway</span><span class=p>:</span><span class=w> </span><span class=m>192.168.1.1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>traefik</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>traefik:v3.0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>webnet</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;80:80&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;443:443&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/run/docker.sock:/var/run/docker.sock</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>postgres</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>postgres:16-alpine</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>backend</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 数据库只暴露给 backend 网，不向外</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>whoami</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>traefik/whoami</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>macvlan-net</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>webnet</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 这个服务同时在两个网里：</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># - 通过 macvlan 获得 192.168.1.x IP 供局域网直接访问</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># - 通过 webnet 被 Traefik 反向代理</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=8-网络排障速查表>8. 网络排障速查表</h2><p>遇到 Docker 网络问题时，按下面的顺序排查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 容器自己在不在？</span>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it &lt;container&gt; ip addr
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it &lt;container&gt; ip route
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it &lt;container&gt; ping 8.8.8.8
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it &lt;container&gt; ping 192.168.1.1
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 网关能到容器吗？</span>
+</span></span><span class=line><span class=cl>ping &lt;容器IP&gt;
+</span></span><span class=line><span class=cl><span class=c1># 如果宿主机能 ping 但局域网不能 → 检查 iptables FORWARD</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. DNS 解析正常吗？</span>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it &lt;container&gt; cat /etc/resolv.conf
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it &lt;container&gt; nslookup google.com
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 4. 端口映射生效吗？</span>
+</span></span><span class=line><span class=cl>ss -tlnp <span class=p>|</span> grep &lt;映射端口&gt;
+</span></span><span class=line><span class=cl>iptables -t nat -L DOCKER -n <span class=p>|</span> grep &lt;映射端口&gt;
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 5. 容器间能用名字访问吗？</span>
+</span></span><span class=line><span class=cl><span class=c1># 自定义 bridge ✅</span>
+</span></span><span class=line><span class=cl><span class=c1># 默认 docker0 ❌</span>
+</span></span><span class=line><span class=cl><span class=c1># Host 模式 ❌</span>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> -it containerA ping containerB
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 6. 跨宿主机通信？</span>
+</span></span><span class=line><span class=cl><span class=c1># Overlay：检查 VXLAN (udp 4789) 是否放通</span>
+</span></span><span class=line><span class=cl>nc -uvz 192.168.1.11 <span class=m>4789</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Macvlan：检查宿主机上是否有子接口</span>
+</span></span><span class=line><span class=cl>ip link show <span class=nb>type</span> macvlan
+</span></span></code></pre></td></tr></table></div></div><h2 id=9-总结>9. 总结</h2><div class=table-wrapper><table><thead><tr><th>模式</th><th>隔离度</th><th>性能</th><th>局域网直接访问</th><th>跨宿主机</th><th>适用场景</th></tr></thead><tbody><tr><td>Bridge</td><td>中</td><td>中</td><td>需 -p 映射</td><td>❌</td><td>大多数 Web 服务</td></tr><tr><td>Host</td><td>低</td><td>最高</td><td>直接占用宿主机端口</td><td>❌</td><td>高性能/硬件直通</td></tr><tr><td>None</td><td>最高</td><td>N/A</td><td>❌</td><td>❌</td><td>离线任务</td></tr><tr><td>Macvlan</td><td>低</td><td>高</td><td>✅ 独立 IP</td><td>❌</td><td>需要真实 IP 的场景</td></tr><tr><td>IPvlan</td><td>低</td><td>最高</td><td>✅ 无 MAC 风暴</td><td>❌</td><td>高密度容器</td></tr><tr><td>Overlay</td><td>中</td><td>中(5-10%损耗)</td><td>需转发</td><td>✅</td><td>多宿主机集群</td></tr></tbody></table></div><p>刚开始玩 Docker 时，Bridge 模式加几条 <code>-p</code> 映射就能跑起来，这没错。但一旦你的 Homelab 开始扩张——加第二台宿主机、接 NAS、跑跨容器服务发现——你就需要理解这些网络模式的真实差异。</p><p><strong>最推荐的 Homelab 入门方案</strong>：主服务用 Bridge + Traefik 反向代理统一入口，给 DNS、DHCP、媒体服务器等需要真实 IP 的服务用 Macvlan 单独分配 IP，等上了两台宿主机再考虑 Overlay。</p><p>这些命令和配置我都一句一句在 PVE 宿主机上跑过验证过。如果你在配置中踩了坑，或者有更好的方案想交流，欢迎在评论区讨论。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

@@ -1,0 +1,324 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Homelab 中用 MinIO 搭建 S3 兼容备份仓库，并用 Restic 实现 Linux、Docker 数据目录和 NAS 共享的加密增量备份，覆盖自动化脚本、保留策略、校验恢复与踩坑。"><title>别只会快照：用 Restic + MinIO 给 Homelab 做一套可恢复的文件级备份</title><link rel=canonical href=https://shallowhave.github.io/p/restic-minio-homelab-backup/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="别只会快照：用 Restic + MinIO 给 Homelab 做一套可恢复的文件级备份"><meta property='og:description' content="在 Homelab 中用 MinIO 搭建 S3 兼容备份仓库，并用 Restic 实现 Linux、Docker 数据目录和 NAS 共享的加密增量备份，覆盖自动化脚本、保留策略、校验恢复与踩坑。"><meta property='og:url' content='https://shallowhave.github.io/p/restic-minio-homelab-backup/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-15T01:01:00+08:00'><meta property='article:modified_time' content='2026-05-15T01:01:00+08:00'><meta name=twitter:title content="别只会快照：用 Restic + MinIO 给 Homelab 做一套可恢复的文件级备份"><meta name=twitter:description content="在 Homelab 中用 MinIO 搭建 S3 兼容备份仓库，并用 Restic 实现 Linux、Docker 数据目录和 NAS 共享的加密增量备份，覆盖自动化脚本、保留策略、校验恢复与踩坑。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言快照不是备份能恢复才算闭环>前言：快照不是备份，能恢复才算闭环</a></li><li><a href=#方案架构>方案架构</a></li><li><a href=#一部署-minio-作为-s3-仓库>一、部署 MinIO 作为 S3 仓库</a></li><li><a href=#二客户端安装-restic-并初始化仓库>二、客户端安装 Restic 并初始化仓库</a></li><li><a href=#三备份什么不要无脑备份整个->三、备份什么：不要无脑备份整个 <code>/</code></a></li><li><a href=#四用-systemd-timer-自动化>四、用 systemd timer 自动化</a></li><li><a href=#五恢复演练每个月至少跑一次>五、恢复演练：每个月至少跑一次</a></li><li><a href=#踩坑记录>踩坑记录</a><ol><li><a href=#-1-minio-和源数据放同一块盘>❌ 1. MinIO 和源数据放同一块盘</a></li><li><a href=#-2-只做-forget-不做-prune>❌ 2. 只做 <code>forget</code> 不做 <code>prune</code></a></li><li><a href=#-3-备份-docker-overlay2>❌ 3. 备份 Docker overlay2</a></li><li><a href=#-4-忘记保存-restic-密码>❌ 4. 忘记保存 Restic 密码</a></li><li><a href=#-5-从不做恢复测试>❌ 5. 从不做恢复测试</a></li></ol></li><li><a href=#进阶异地副本与不可变备份>进阶：异地副本与不可变备份</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/restic-minio-homelab-backup/>别只会快照：用 Restic + MinIO 给 Homelab 做一套可恢复的文件级备份</a></h2><h3 class=article-subtitle>在 Homelab 中用 MinIO 搭建 S3 兼容备份仓库，并用 Restic 实现 Linux、Docker 数据目录和 NAS 共享的加密增量备份，覆盖自动化脚本、保留策略、校验恢复与踩坑。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 15, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 6 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言快照不是备份能恢复才算闭环>前言：快照不是备份，能恢复才算闭环</h2><p>很多 Homelab 一开始都会依赖 PVE 快照、ZFS snapshot、NAS 回收站来“防误删”。这些能力很好，但它们本质上更偏向<strong>本机时间点回滚</strong>，并不天然解决几个问题：</p><ol><li>宿主机或存储池整体损坏时，快照也跟着没了；</li><li>Docker 应用的数据散落在 <code>/opt</code>、<code>/var/lib/docker/volumes</code>、NFS 挂载点里，PVE VM 级备份粒度太粗；</li><li>想恢复单个配置文件、某个数据库 dump、某张照片时，整机恢复成本太高；</li><li>没有定期校验和恢复演练，备份文件存在不等于可用。</li></ol><p>所以这篇文章不讲 PVE 核显 SR-IOV、vGPU，也不重复 PBS 整机备份，而是做一套<strong>文件级、加密、增量、可校验、可自动化</strong>的 Homelab 备份方案：</p><ul><li>MinIO：在内网提供 S3 兼容对象存储，作为 Restic 仓库后端；</li><li>Restic：负责客户端加密、去重、增量备份、保留策略和恢复；</li><li>systemd timer：替代脆弱的 crontab，做可观测的定时任务；</li><li><code>check</code> + 恢复演练：确认备份真的能用。</li></ul><blockquote><p>MinIO 官方文档强调容器部署时磁盘、控制器和网络会直接影响性能；Restic 官方文档也支持用环境变量配置仓库地址和密码，适合无人值守备份脚本。</p></blockquote><h2 id=方案架构>方案架构</h2><p>推荐拓扑如下：</p><div class=table-wrapper><table><thead><tr><th>角色</th><th>示例 IP</th><th>作用</th><th>建议</th></tr></thead><tbody><tr><td>MinIO 备份端</td><td><code>192.168.10.20</code></td><td>S3 兼容对象存储</td><td>独立磁盘 / NAS / 另一台机器 ✅</td></tr><tr><td>Docker 主机</td><td><code>192.168.10.30</code></td><td>运行应用容器</td><td>备份 <code>/opt/app</code>、compose、数据库 dump</td></tr><tr><td>PVE / Linux 主机</td><td><code>192.168.10.10</code></td><td>宿主机配置</td><td>备份 <code>/etc</code>、脚本、关键配置</td></tr><tr><td>异地副本</td><td>可选</td><td>防火灾/误删/勒索</td><td>rclone 同步到云端或另一地点 🏆</td></tr></tbody></table></div><p>核心原则：<strong>备份端不要和生产数据在同一块盘上</strong>。如果 MinIO 和 Docker 服务都跑在同一台机器同一块 SSD 上，那只能防误删，不能防硬盘损坏。</p><h2 id=一部署-minio-作为-s3-仓库>一、部署 MinIO 作为 S3 仓库</h2><p>先在备份服务器准备目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo mkdir -p /opt/minio/<span class=o>{</span>data,config<span class=o>}</span>
+</span></span><span class=line><span class=cl>sudo useradd -r -s /usr/sbin/nologin minio <span class=o>||</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl>sudo chown -R 1000:1000 /opt/minio
+</span></span></code></pre></td></tr></table></div></div><p><code>docker-compose.yml</code> 示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>minio</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>quay.io/minio/minio:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>minio</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w> </span><span class=l>server /data --console-address &#34;:9001&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>MINIO_ROOT_USER</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;minioadmin&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>MINIO_ROOT_PASSWORD</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;请换成至少32位随机密码&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>TZ</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Asia/Shanghai&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/opt/minio/data:/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/opt/minio/config:/root/.minio</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;9000:9000&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;9001:9001&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>启动：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/minio
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker logs -f minio
+</span></span></code></pre></td></tr></table></div></div><p>访问控制台：<code>http://192.168.10.20:9001</code>，创建 bucket：<code>homelab-restic</code>。</p><p>生产环境建议不要直接使用 root key 给 Restic。用 MinIO Client 创建专用用户：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run --rm -it --network host quay.io/minio/mc:latest sh
+</span></span><span class=line><span class=cl>mc <span class=nb>alias</span> <span class=nb>set</span> <span class=nb>local</span> http://192.168.10.20:9000 minioadmin <span class=s1>&#39;你的Root密码&#39;</span>
+</span></span><span class=line><span class=cl>mc admin user add <span class=nb>local</span> restic-backup <span class=s1>&#39;再生成一个强密码&#39;</span>
+</span></span><span class=line><span class=cl>mc admin policy attach <span class=nb>local</span> readwrite --user restic-backup
+</span></span><span class=line><span class=cl>mc ls <span class=nb>local</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果只想限制到单个 bucket，可以写更细的 JSON policy，不过 Homelab 初期 <code>readwrite</code> + 独立用户已经比直接暴露 root 凭据好很多。</p><h2 id=二客户端安装-restic-并初始化仓库>二、客户端安装 Restic 并初始化仓库</h2><p>在需要备份的 Linux / Docker 主机安装：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo apt update
+</span></span><span class=line><span class=cl>sudo apt install -y restic
+</span></span><span class=line><span class=cl>restic version
+</span></span></code></pre></td></tr></table></div></div><p>创建环境文件，避免把密钥写进脚本：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo install -d -m <span class=m>700</span> /etc/restic
+</span></span><span class=line><span class=cl>sudo tee /etc/restic/homelab.env &gt;/dev/null <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>export AWS_ACCESS_KEY_ID=&#34;restic-backup&#34;
+</span></span></span><span class=line><span class=cl><span class=s>export AWS_SECRET_ACCESS_KEY=&#34;你的MinIO用户密码&#34;
+</span></span></span><span class=line><span class=cl><span class=s>export RESTIC_REPOSITORY=&#34;s3:http://192.168.10.20:9000/homelab-restic/docker-host-01&#34;
+</span></span></span><span class=line><span class=cl><span class=s>export RESTIC_PASSWORD=&#34;Restic仓库加密密码，务必离线保存&#34;
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>sudo chmod <span class=m>600</span> /etc/restic/homelab.env
+</span></span></code></pre></td></tr></table></div></div><p>初始化仓库：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo bash -c <span class=s1>&#39;source /etc/restic/homelab.env &amp;&amp; restic init&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>注意：<code>RESTIC_PASSWORD</code> 是客户端加密密码，MinIO 管理员也不能解密你的备份。这个密码一旦丢失，备份基本等于废数据，建议放进密码管理器，并离线保存一份。</p><h2 id=三备份什么不要无脑备份整个->三、备份什么：不要无脑备份整个 <code>/</code></h2><p>Homelab 里最值得备份的是<strong>配置、编排文件、应用数据和数据库导出</strong>，而不是系统缓存、镜像层、临时文件。</p><p>一个 Docker 主机可以这样组织：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>/opt/stacks/                 <span class=c1># docker compose 项目</span>
+</span></span><span class=line><span class=cl>/opt/appdata/                <span class=c1># 应用持久化目录</span>
+</span></span><span class=line><span class=cl>/opt/backup-dump/            <span class=c1># 数据库导出临时目录</span>
+</span></span><span class=line><span class=cl>/etc/                         <span class=c1># 关键系统配置</span>
+</span></span><span class=line><span class=cl>/usr/local/bin/               <span class=c1># 自写脚本</span>
+</span></span></code></pre></td></tr></table></div></div><p>排除文件 <code>/etc/restic/excludes.txt</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>/var/lib/docker/overlay2
+</span></span><span class=line><span class=cl>/var/lib/docker/image
+</span></span><span class=line><span class=cl>/var/lib/docker/containers/*/*-json.log
+</span></span><span class=line><span class=cl>/tmp
+</span></span><span class=line><span class=cl>/var/tmp
+</span></span><span class=line><span class=cl>/cache
+</span></span><span class=line><span class=cl>node_modules
+</span></span><span class=line><span class=cl>*.tmp
+</span></span><span class=line><span class=cl>*.cache
+</span></span></code></pre></td></tr></table></div></div><p>备份脚本 <code>/usr/local/sbin/restic-homelab-backup.sh</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/usr/bin/env bash
+</span></span></span><span class=line><span class=cl><span class=nb>set</span> -euo pipefail
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nb>source</span> /etc/restic/homelab.env
+</span></span><span class=line><span class=cl><span class=nv>HOST_TAG</span><span class=o>=</span><span class=s2>&#34;docker-host-01&#34;</span>
+</span></span><span class=line><span class=cl><span class=nv>DUMP_DIR</span><span class=o>=</span><span class=s2>&#34;/opt/backup-dump&#34;</span>
+</span></span><span class=line><span class=cl>mkdir -p <span class=s2>&#34;</span><span class=nv>$DUMP_DIR</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 示例：备份 PostgreSQL 容器数据库，按实际容器名修改</span>
+</span></span><span class=line><span class=cl><span class=k>if</span> docker ps --format <span class=s1>&#39;{{.Names}}&#39;</span> <span class=p>|</span> grep -q <span class=s1>&#39;^postgres$&#39;</span><span class=p>;</span> <span class=k>then</span>
+</span></span><span class=line><span class=cl>  docker <span class=nb>exec</span> postgres pg_dumpall -U postgres &gt; <span class=s2>&#34;</span><span class=nv>$DUMP_DIR</span><span class=s2>/postgres-all.sql&#34;</span>
+</span></span><span class=line><span class=cl><span class=k>fi</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 示例：备份 MariaDB / MySQL</span>
+</span></span><span class=line><span class=cl><span class=k>if</span> docker ps --format <span class=s1>&#39;{{.Names}}&#39;</span> <span class=p>|</span> grep -q <span class=s1>&#39;^mariadb$&#39;</span><span class=p>;</span> <span class=k>then</span>
+</span></span><span class=line><span class=cl>  docker <span class=nb>exec</span> mariadb mariadb-dump --all-databases -uroot -p<span class=s2>&#34;</span><span class=nv>$MYSQL_ROOT_PASSWORD</span><span class=s2>&#34;</span> &gt; <span class=s2>&#34;</span><span class=nv>$DUMP_DIR</span><span class=s2>/mariadb-all.sql&#34;</span>
+</span></span><span class=line><span class=cl><span class=k>fi</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>restic backup <span class=se>\
+</span></span></span><span class=line><span class=cl>  /etc <span class=se>\
+</span></span></span><span class=line><span class=cl>  /usr/local/bin <span class=se>\
+</span></span></span><span class=line><span class=cl>  /opt/stacks <span class=se>\
+</span></span></span><span class=line><span class=cl>  /opt/appdata <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=s2>&#34;</span><span class=nv>$DUMP_DIR</span><span class=s2>&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --exclude-file /etc/restic/excludes.txt <span class=se>\
+</span></span></span><span class=line><span class=cl>  --one-file-system <span class=se>\
+</span></span></span><span class=line><span class=cl>  --tag <span class=s2>&#34;</span><span class=nv>$HOST_TAG</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 保留策略：近 7 天每天、近 4 周每周、近 12 个月每月</span>
+</span></span><span class=line><span class=cl>restic forget <span class=se>\
+</span></span></span><span class=line><span class=cl>  --tag <span class=s2>&#34;</span><span class=nv>$HOST_TAG</span><span class=s2>&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --keep-daily <span class=m>7</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --keep-weekly <span class=m>4</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --keep-monthly <span class=m>12</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --prune
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 快速校验仓库结构；深度校验可以放到周任务</span>
+</span></span><span class=line><span class=cl>restic check
+</span></span></code></pre></td></tr></table></div></div><p>授权：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo chmod <span class=m>700</span> /usr/local/sbin/restic-homelab-backup.sh
+</span></span><span class=line><span class=cl>sudo /usr/local/sbin/restic-homelab-backup.sh
+</span></span></code></pre></td></tr></table></div></div><p>这里有一个关键点：数据库不要只备份裸 volume。PostgreSQL、MySQL 这类数据库在运行时直接复制数据目录，可能得到不一致状态。更稳妥的方式是先 dump，再让 Restic 备份 dump 文件。大数据库可以用物理备份工具，但 Homelab 多数场景 dump 足够。</p><h2 id=四用-systemd-timer-自动化>四、用 systemd timer 自动化</h2><p>创建 service：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=c1># /etc/systemd/system/restic-homelab-backup.service</span>
+</span></span><span class=line><span class=cl><span class=k>[Unit]</span>
+</span></span><span class=line><span class=cl><span class=na>Description</span><span class=o>=</span><span class=s>Restic Homelab Backup</span>
+</span></span><span class=line><span class=cl><span class=na>Wants</span><span class=o>=</span><span class=s>network-online.target</span>
+</span></span><span class=line><span class=cl><span class=na>After</span><span class=o>=</span><span class=s>network-online.target docker.service</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[Service]</span>
+</span></span><span class=line><span class=cl><span class=na>Type</span><span class=o>=</span><span class=s>oneshot</span>
+</span></span><span class=line><span class=cl><span class=na>ExecStart</span><span class=o>=</span><span class=s>/usr/local/sbin/restic-homelab-backup.sh</span>
+</span></span><span class=line><span class=cl><span class=na>Nice</span><span class=o>=</span><span class=s>10</span>
+</span></span><span class=line><span class=cl><span class=na>IOSchedulingClass</span><span class=o>=</span><span class=s>best-effort</span>
+</span></span><span class=line><span class=cl><span class=na>IOSchedulingPriority</span><span class=o>=</span><span class=s>7</span>
+</span></span></code></pre></td></tr></table></div></div><p>创建 timer：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=c1># /etc/systemd/system/restic-homelab-backup.timer</span>
+</span></span><span class=line><span class=cl><span class=k>[Unit]</span>
+</span></span><span class=line><span class=cl><span class=na>Description</span><span class=o>=</span><span class=s>Run Restic Homelab Backup Daily</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[Timer]</span>
+</span></span><span class=line><span class=cl><span class=na>OnCalendar</span><span class=o>=</span><span class=s>*-*-* 03:30:00</span>
+</span></span><span class=line><span class=cl><span class=na>RandomizedDelaySec</span><span class=o>=</span><span class=s>20m</span>
+</span></span><span class=line><span class=cl><span class=na>Persistent</span><span class=o>=</span><span class=s>true</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>[Install]</span>
+</span></span><span class=line><span class=cl><span class=na>WantedBy</span><span class=o>=</span><span class=s>timers.target</span>
+</span></span></code></pre></td></tr></table></div></div><p>启用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo systemctl daemon-reload
+</span></span><span class=line><span class=cl>sudo systemctl <span class=nb>enable</span> --now restic-homelab-backup.timer
+</span></span><span class=line><span class=cl>systemctl list-timers <span class=p>|</span> grep restic
+</span></span><span class=line><span class=cl>journalctl -u restic-homelab-backup.service -n <span class=m>100</span> --no-pager
+</span></span></code></pre></td></tr></table></div></div><p><code>Persistent=true</code> 的好处是：如果凌晨 3:30 主机没开机，下一次开机后会补跑一次，比普通 crontab 更适合偶尔关机的 Homelab。</p><h2 id=五恢复演练每个月至少跑一次>五、恢复演练：每个月至少跑一次</h2><p>只会备份不会恢复，等于没备份。常用命令：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>source</span> /etc/restic/homelab.env
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看快照</span>
+</span></span><span class=line><span class=cl>restic snapshots
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看某个快照里的文件</span>
+</span></span><span class=line><span class=cl>restic ls latest <span class=p>|</span> less
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 恢复单个目录到临时位置</span>
+</span></span><span class=line><span class=cl>sudo mkdir -p /tmp/restore-test
+</span></span><span class=line><span class=cl>restic restore latest --target /tmp/restore-test --include /opt/stacks
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 挂载仓库浏览，适合找文件</span>
+</span></span><span class=line><span class=cl>sudo mkdir -p /mnt/restic
+</span></span><span class=line><span class=cl>restic mount /mnt/restic
+</span></span></code></pre></td></tr></table></div></div><p>恢复 Docker 应用时，建议流程是：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/stacks/你的应用
+</span></span><span class=line><span class=cl>docker compose down
+</span></span><span class=line><span class=cl>rsync -aH --delete /tmp/restore-test/opt/appdata/你的应用/ /opt/appdata/你的应用/
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker compose logs -f
+</span></span></code></pre></td></tr></table></div></div><p>数据库恢复示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># PostgreSQL</span>
+</span></span><span class=line><span class=cl>cat /tmp/restore-test/opt/backup-dump/postgres-all.sql <span class=p>|</span> docker <span class=nb>exec</span> -i postgres psql -U postgres
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># MariaDB</span>
+</span></span><span class=line><span class=cl>cat /tmp/restore-test/opt/backup-dump/mariadb-all.sql <span class=p>|</span> docker <span class=nb>exec</span> -i mariadb mariadb -uroot -p
+</span></span></code></pre></td></tr></table></div></div><h2 id=踩坑记录>踩坑记录</h2><h3 id=-1-minio-和源数据放同一块盘>❌ 1. MinIO 和源数据放同一块盘</h3><p>这只能防误删，不防硬盘坏。最低要求是不同物理盘；更推荐另一台机器、NAS 或异地对象存储。</p><h3 id=-2-只做-forget-不做-prune>❌ 2. 只做 <code>forget</code> 不做 <code>prune</code></h3><p><code>restic forget</code> 只是标记旧快照不再保留，真正释放空间需要 <code>--prune</code>。如果担心每日任务太慢，可以每日 <code>forget</code>，每周单独跑：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>source</span> /etc/restic/homelab.env
+</span></span><span class=line><span class=cl>restic prune
+</span></span><span class=line><span class=cl>restic check --read-data-subset<span class=o>=</span>10%
+</span></span></code></pre></td></tr></table></div></div><h3 id=-3-备份-docker-overlay2>❌ 3. 备份 Docker overlay2</h3><p><code>/var/lib/docker/overlay2</code> 体积巨大且恢复价值低，Restic 会浪费大量时间扫描。真正要备份的是 compose 文件、环境变量模板、应用持久化 volume 和数据库 dump。</p><h3 id=-4-忘记保存-restic-密码>❌ 4. 忘记保存 Restic 密码</h3><p>MinIO access key 可以重置，但 Restic 仓库密码丢了无法解密。建议把 <code>/etc/restic/homelab.env</code> 中的 <code>RESTIC_PASSWORD</code> 放进密码管理器，并打印一份离线保存。</p><h3 id=-5-从不做恢复测试>❌ 5. 从不做恢复测试</h3><p>建议每月创建一个临时目录恢复 <code>latest</code>，至少验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>restic check
+</span></span><span class=line><span class=cl>restic restore latest --target /tmp/restore-test --include /etc/hostname
+</span></span><span class=line><span class=cl>diff /etc/hostname /tmp/restore-test/etc/hostname
+</span></span></code></pre></td></tr></table></div></div><h2 id=进阶异地副本与不可变备份>进阶：异地副本与不可变备份</h2><p>如果预算允许，可以再加一层：</p><div class=table-wrapper><table><thead><tr><th>方案</th><th>成本</th><th>防护能力</th><th>适合场景</th></tr></thead><tbody><tr><td>本机 MinIO</td><td>低</td><td>防误删 ✅</td><td>入门测试</td></tr><tr><td>独立 NAS / 另一台机器</td><td>中</td><td>防主机损坏 ✅</td><td>常规 Homelab 🏆</td></tr><tr><td>云端 S3 / B2 / R2</td><td>中</td><td>防本地灾难 ✅</td><td>重要数据</td></tr><tr><td>对象锁 / WORM</td><td>较高</td><td>防勒索 ✅</td><td>家庭照片、文档</td></tr></tbody></table></div><p>用 <code>rclone</code> 同步 MinIO bucket 到云端也可以，但要注意：Restic 仓库是大量小对象和索引文件，复制时必须保证完整性，复制后最好在目标端跑一次：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nv>RESTIC_REPOSITORY</span><span class=o>=</span><span class=s2>&#34;s3:https://你的云端S3/homelab-restic/docker-host-01&#34;</span> restic check
+</span></span></code></pre></td></tr></table></div></div><h2 id=总结>总结</h2><p>这套 Restic + MinIO 方案适合补齐 Homelab 的“文件级备份”短板：</p><div class=table-wrapper><table><thead><tr><th>需求</th><th>推荐做法</th></tr></thead><tbody><tr><td>PVE VM 整机恢复</td><td>PBS / vzdump</td></tr><tr><td>配置文件、Compose、脚本</td><td>Restic 文件级备份 🏆</td></tr><tr><td>数据库</td><td>先 dump，再 Restic</td></tr><tr><td>快速误删恢复</td><td>ZFS snapshot / Restic restore</td></tr><tr><td>防硬盘损坏</td><td>备份到独立物理设备</td></tr><tr><td>防本地灾难</td><td>再同步一份异地</td></tr></tbody></table></div><p>一句话：<strong>快照负责回滚，Restic 负责可移植恢复，异地副本负责兜底。</strong> Homelab 数据量可以不大，但恢复链路一定要完整；否则备份只是心理安慰。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

@@ -1,0 +1,552 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="用 Grafana Loki、Grafana Alloy 和 Docker Compose 搭建 Homelab 集中日志平台，采集 Docker 容器日志与 systemd journal，包含可直接落地的配置、LogQL 查询、保留策略和踩坑记录。"><title>Homelab 日志别再 SSH 上去 grep：Loki + Alloy 打造轻量集中日志系统</title><link rel=canonical href=https://shallowhave.github.io/p/homelab-loki-alloy-logs/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Homelab 日志别再 SSH 上去 grep：Loki + Alloy 打造轻量集中日志系统"><meta property='og:description' content="用 Grafana Loki、Grafana Alloy 和 Docker Compose 搭建 Homelab 集中日志平台，采集 Docker 容器日志与 systemd journal，包含可直接落地的配置、LogQL 查询、保留策略和踩坑记录。"><meta property='og:url' content='https://shallowhave.github.io/p/homelab-loki-alloy-logs/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-24T01:26:16+08:00'><meta property='article:modified_time' content='2026-05-24T01:26:16+08:00'><meta name=twitter:title content="Homelab 日志别再 SSH 上去 grep：Loki + Alloy 打造轻量集中日志系统"><meta name=twitter:description content="用 Grafana Loki、Grafana Alloy 和 Docker Compose 搭建 Homelab 集中日志平台，采集 Docker 容器日志与 systemd journal，包含可直接落地的配置、LogQL 查询、保留策略和踩坑记录。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-架构设计>1. 架构设计</a></li><li><a href=#2-准备目录>2. 准备目录</a></li><li><a href=#3-docker-compose一套跑起来>3. Docker Compose：一套跑起来</a></li><li><a href=#4-loki-配置单机存储--7-天保留>4. Loki 配置：单机存储 + 7 天保留</a></li><li><a href=#5-grafana-自动配置-loki-数据源>5. Grafana 自动配置 Loki 数据源</a></li><li><a href=#6-alloy-配置采集-docker--systemd-journal>6. Alloy 配置：采集 Docker + systemd journal</a></li><li><a href=#7-启动与验证>7. 启动与验证</a></li><li><a href=#8-常用-logql-查询>8. 常用 LogQL 查询</a></li><li><a href=#9-多节点接入每台机器跑一个-alloy>9. 多节点接入：每台机器跑一个 Alloy</a></li><li><a href=#10-docker-日志轮转也要做>10. Docker 日志轮转也要做</a></li><li><a href=#11-踩坑记录>11. 踩坑记录</a><ol><li><a href=#-1-varlogjournal-不存在>❌ 1. <code>/var/log/journal</code> 不存在</a></li><li><a href=#-2-alloy-没权限读-journal>❌ 2. Alloy 没权限读 journal</a></li><li><a href=#-3-loki-暴露到公网>❌ 3. Loki 暴露到公网</a></li><li><a href=#-4-label-设计太激进>❌ 4. Label 设计太激进</a></li></ol></li><li><a href=#12-总结>12. 总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/homelab-loki-alloy-logs/>Homelab 日志别再 SSH 上去 grep：Loki + Alloy 打造轻量集中日志系统</a></h2><h3 class=article-subtitle>用 Grafana Loki、Grafana Alloy 和 Docker Compose 搭建 Homelab 集中日志平台，采集 Docker 容器日志与 systemd journal，包含可直接落地的配置、LogQL 查询、保留策略和踩坑记录。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 24, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 8 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>Homelab 服务跑多以后，排障最常见的动作不是重启，而是找日志：PVE 节点上看 <code>journalctl</code>，Docker 主机上看 <code>docker logs</code>，NAS 上再 SSH 一次，最后还要把几台机器的时间线手动对齐。服务少的时候还能忍，等你有了反向代理、DNS、监控、相册、Home Assistant、备份任务之后，<strong>日志分散</strong>会变成非常低效的运维方式。</p><p>本文搭一个轻量集中日志系统：<strong>Grafana Loki + Grafana Alloy + Grafana</strong>。</p><p>它适合 Homelab 的原因很直接：</p><ul><li>Loki 不像 Elasticsearch 那样默认把全文建索引，更省磁盘和内存；</li><li>Alloy 是 Grafana 官方推荐的新一代采集 Agent，可替代已经进入生命周期末期的 Promtail；</li><li>Docker Compose 即可部署，不需要 Kubernetes；</li><li>可以同时采集 Docker 容器日志和 Linux systemd journal；</li><li>Grafana 里可以用 LogQL 按主机、容器、服务快速过滤日志。</li></ul><blockquote><p>注意：下面示例默认只在内网使用。Loki 示例配置 <code>auth_enabled: false</code>，不要把 <code>3100</code> 端口直接暴露到公网。</p></blockquote><h2 id=1-架构设计>1. 架构设计</h2><p>单机 Homelab 可以把 Loki、Grafana、Alloy 都放在同一个 Compose 栈里。多节点场景则建议中心节点跑 Loki + Grafana，每台需要采集日志的机器单独跑一个 Alloy Agent。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Docker 主机 / PVE VM / NAS
+</span></span><span class=line><span class=cl>  ├── Docker logs
+</span></span><span class=line><span class=cl>  ├── systemd journal
+</span></span><span class=line><span class=cl>  └── Grafana Alloy  ---&gt;  Loki :3100  ---&gt;  Grafana :3000
+</span></span></code></pre></td></tr></table></div></div><p>组件分工如下：</p><div class=table-wrapper><table><thead><tr><th>组件</th><th>作用</th><th>Homelab 建议</th></tr></thead><tbody><tr><td>Loki</td><td>日志存储与查询</td><td>单机模式 + 文件系统存储</td></tr><tr><td>Alloy</td><td>日志采集 Agent</td><td>每台主机一个，读取 Docker socket 和 journal</td></tr><tr><td>Grafana</td><td>查询、可视化、Explore</td><td>复用已有 Grafana 或单独部署</td></tr><tr><td>LogQL</td><td>日志查询语言</td><td>用 label 过滤，用管道做文本/JSON 解析</td></tr></tbody></table></div><p>为什么不用 Promtail？Grafana 官方已经将 Promtail 标记为生命周期末期，新部署建议直接用 Alloy。Promtail 老配置还能跑，但新 Homelab 没必要再背一套即将退场的 Agent。</p><h2 id=2-准备目录>2. 准备目录</h2><p>这里把数据和配置都放在 <code>~/loki-stack</code>，方便备份和迁移。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p ~/loki-stack/<span class=o>{</span>loki,alloy,grafana/provisioning/datasources<span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> ~/loki-stack
+</span></span></code></pre></td></tr></table></div></div><p>目录结构如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>loki-stack/
+</span></span><span class=line><span class=cl>├── docker-compose.yml
+</span></span><span class=line><span class=cl>├── loki/
+</span></span><span class=line><span class=cl>│   └── loki-config.yaml
+</span></span><span class=line><span class=cl>├── alloy/
+</span></span><span class=line><span class=cl>│   └── config.alloy
+</span></span><span class=line><span class=cl>└── grafana/
+</span></span><span class=line><span class=cl>    └── provisioning/
+</span></span><span class=line><span class=cl>        └── datasources/
+</span></span><span class=line><span class=cl>            └── loki.yaml
+</span></span></code></pre></td></tr></table></div></div><p>如果你已经有 Grafana，可以不部署本文里的 <code>grafana</code> 服务，只保留 Loki 和 Alloy，然后在现有 Grafana 里添加 Loki 数据源即可。</p><h2 id=3-docker-compose一套跑起来>3. Docker Compose：一套跑起来</h2><p>创建 <code>docker-compose.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>loki</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>grafana/loki:3.5.12</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>loki</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- -<span class=l>config.file=/etc/loki/loki-config.yaml</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;3100:3100&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./data/loki:/loki</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>grafana</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>grafana/grafana:13.0.1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>grafana</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;3000:3000&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>GF_SECURITY_ADMIN_USER</span><span class=p>:</span><span class=w> </span><span class=l>admin</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>GF_SECURITY_ADMIN_PASSWORD</span><span class=p>:</span><span class=w> </span><span class=l>change-this-password</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>GF_USERS_ALLOW_SIGN_UP</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;false&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./data/grafana:/var/lib/grafana</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./grafana/provisioning:/etc/grafana/provisioning:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>depends_on</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>loki</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>alloy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>grafana/alloy:v1.16.1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>alloy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>user</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0:0&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>run</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- --<span class=l>server.http.listen-addr=0.0.0.0:12345</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- --<span class=l>storage.path=/var/lib/alloy/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/etc/alloy/config.alloy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ALLOY_HOSTNAME</span><span class=p>:</span><span class=w> </span><span class=l>${HOSTNAME}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>LOKI_URL</span><span class=p>:</span><span class=w> </span><span class=l>http://loki:3100/loki/api/v1/push</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;12345:12345&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./alloy/config.alloy:/etc/alloy/config.alloy:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./data/alloy:/var/lib/alloy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/run/docker.sock:/var/run/docker.sock:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/log/journal:/var/log/journal:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/etc/machine-id:/etc/machine-id:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>depends_on</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>loki</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>几个关键点：</p><ol><li><code>user: "0:0"</code> 是为了读取宿主机 journal 文件，权限不够时 Alloy 会采集不到 systemd 日志；</li><li>Docker socket 即使只读也很敏感，Alloy 这台机器要当成可信组件；</li><li>Loki 数据用 <code>./data/loki:/loki</code> 这种显式目录，比 Docker named volume 更容易被 Restic、PBS 或 NAS 备份；</li><li><code>grafana/loki</code>、<code>grafana/alloy</code>、<code>grafana/grafana</code> 都建议固定版本，不要生产环境裸用 <code>latest</code>。</li></ol><h2 id=4-loki-配置单机存储--7-天保留>4. Loki 配置：单机存储 + 7 天保留</h2><p>创建 <code>loki/loki-config.yaml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>auth_enabled</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>server</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>http_listen_port</span><span class=p>:</span><span class=w> </span><span class=m>3100</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>common</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>instance_addr</span><span class=p>:</span><span class=w> </span><span class=m>127.0.0.1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>path_prefix</span><span class=p>:</span><span class=w> </span><span class=l>/loki</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>storage</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>filesystem</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>chunks_directory</span><span class=p>:</span><span class=w> </span><span class=l>/loki/chunks</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>rules_directory</span><span class=p>:</span><span class=w> </span><span class=l>/loki/rules</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>replication_factor</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ring</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>kvstore</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>store</span><span class=p>:</span><span class=w> </span><span class=l>inmemory</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>schema_config</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>from</span><span class=p>:</span><span class=w> </span><span class=ld>2024-01-01</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>store</span><span class=p>:</span><span class=w> </span><span class=l>tsdb</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>object_store</span><span class=p>:</span><span class=w> </span><span class=l>filesystem</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>schema</span><span class=p>:</span><span class=w> </span><span class=l>v13</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>index</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>prefix</span><span class=p>:</span><span class=w> </span><span class=l>index_</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>period</span><span class=p>:</span><span class=w> </span><span class=l>24h</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>limits_config</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>retention_period</span><span class=p>:</span><span class=w> </span><span class=l>168h</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>compactor</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>working_directory</span><span class=p>:</span><span class=w> </span><span class=l>/loki/compactor</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>retention_enabled</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>delete_request_store</span><span class=p>:</span><span class=w> </span><span class=l>filesystem</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>query_range</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>results_cache</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>cache</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>embedded_cache</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>enabled</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>max_size_mb</span><span class=p>:</span><span class=w> </span><span class=m>100</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><code>retention_period: 168h</code> 表示保留 7 天。日志系统最容易被忽略的坑就是<strong>只采集不清理</strong>，最后磁盘爆掉。Loki 的保留清理依赖 compactor，所以上面同时开启了：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>compactor</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>retention_enabled</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>如果你的日志量很小，可以改成 30 天：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>limits_config</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>retention_period</span><span class=p>:</span><span class=w> </span><span class=l>720h</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>但不要一上来就永久保留。Homelab 的日志价值通常集中在最近几天：服务为什么重启、证书为什么续签失败、备份任务昨晚有没有报错，这些问题 7~30 天足够覆盖。</p><h2 id=5-grafana-自动配置-loki-数据源>5. Grafana 自动配置 Loki 数据源</h2><p>创建 <code>grafana/provisioning/datasources/loki.yaml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>datasources</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Loki</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>loki</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>access</span><span class=p>:</span><span class=w> </span><span class=l>proxy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>url</span><span class=p>:</span><span class=w> </span><span class=l>http://loki:3100</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>isDefault</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>editable</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>Grafana 启动后会自动加载这个数据源。进入 <code>Explore</code> 页面选择 <code>Loki</code>，就可以开始查日志。</p><p>如果你复用已有 Grafana，手动添加数据源也可以：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Connections -&gt; Data sources -&gt; Add data source -&gt; Loki
+</span></span><span class=line><span class=cl>URL: http://&lt;loki-ip&gt;:3100
+</span></span></code></pre></td></tr></table></div></div><h2 id=6-alloy-配置采集-docker--systemd-journal>6. Alloy 配置：采集 Docker + systemd journal</h2><p>创建 <code>alloy/config.alloy</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span><span class=lnt>54
+</span><span class=lnt>55
+</span><span class=lnt>56
+</span><span class=lnt>57
+</span><span class=lnt>58
+</span><span class=lnt>59
+</span><span class=lnt>60
+</span><span class=lnt>61
+</span><span class=lnt>62
+</span><span class=lnt>63
+</span><span class=lnt>64
+</span><span class=lnt>65
+</span><span class=lnt>66
+</span><span class=lnt>67
+</span><span class=lnt>68
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=k>logging</span> {
+</span></span><span class=line><span class=cl><span class=n>  level</span> <span class=o>=</span> <span class=s2>&#34;info&#34;</span>
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>loki</span><span class=p>.</span><span class=k>write</span> <span class=s2>&#34;default&#34;</span> {
+</span></span><span class=line><span class=cl>  <span class=k>endpoint</span> {
+</span></span><span class=line><span class=cl><span class=n>    url</span> <span class=o>=</span> <span class=k>env</span><span class=p>(</span><span class=s2>&#34;LOKI_URL&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>discovery</span><span class=p>.</span><span class=k>docker</span> <span class=s2>&#34;containers&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  host</span> <span class=o>=</span> <span class=s2>&#34;unix:///var/run/docker.sock&#34;</span>
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>discovery</span><span class=p>.</span><span class=k>relabel</span> <span class=s2>&#34;docker&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  targets</span> <span class=o>=</span> <span class=p>[]</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>rule</span> {
+</span></span><span class=line><span class=cl><span class=n>    target_label</span> <span class=o>=</span> <span class=s2>&#34;job&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    replacement</span>  <span class=o>=</span> <span class=s2>&#34;docker&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>rule</span> {
+</span></span><span class=line><span class=cl><span class=n>    target_label</span> <span class=o>=</span> <span class=s2>&#34;host&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    replacement</span>  <span class=o>=</span> <span class=k>env</span><span class=p>(</span><span class=s2>&#34;ALLOY_HOSTNAME&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>rule</span> {
+</span></span><span class=line><span class=cl><span class=n>    source_labels</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;__meta_docker_container_name&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl><span class=n>    regex</span>         <span class=o>=</span> <span class=s2>&#34;/(.*)&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    target_label</span>  <span class=o>=</span> <span class=s2>&#34;container&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>rule</span> {
+</span></span><span class=line><span class=cl><span class=n>    source_labels</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;__meta_docker_container_log_stream&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl><span class=n>    target_label</span>  <span class=o>=</span> <span class=s2>&#34;stream&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>rule</span> {
+</span></span><span class=line><span class=cl><span class=n>    source_labels</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;__meta_docker_container_label_com_docker_compose_project&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl><span class=n>    target_label</span>  <span class=o>=</span> <span class=s2>&#34;compose_project&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>rule</span> {
+</span></span><span class=line><span class=cl><span class=n>    source_labels</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;__meta_docker_container_label_com_docker_compose_service&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl><span class=n>    target_label</span>  <span class=o>=</span> <span class=s2>&#34;compose_service&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>loki</span><span class=p>.</span><span class=k>source</span><span class=p>.</span><span class=k>docker</span> <span class=s2>&#34;containers&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  host</span>             <span class=o>=</span> <span class=s2>&#34;unix:///var/run/docker.sock&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>  targets</span>          <span class=o>=</span> <span class=k>discovery</span><span class=p>.</span><span class=k>docker</span><span class=p>.</span><span class=k>containers</span><span class=p>.</span><span class=k>targets</span>
+</span></span><span class=line><span class=cl><span class=n>  relabel_rules</span>    <span class=o>=</span> <span class=k>discovery</span><span class=p>.</span><span class=k>relabel</span><span class=p>.</span><span class=k>docker</span><span class=p>.</span><span class=k>rules</span>
+</span></span><span class=line><span class=cl><span class=n>  refresh_interval</span> <span class=o>=</span> <span class=s2>&#34;5s&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>  forward_to</span>       <span class=o>=</span> <span class=p>[</span><span class=k>loki</span><span class=p>.</span><span class=k>write</span><span class=p>.</span><span class=k>default</span><span class=p>.</span><span class=k>receiver</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>loki</span><span class=p>.</span><span class=k>source</span><span class=p>.</span><span class=k>journal</span> <span class=s2>&#34;system&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  path</span>    <span class=o>=</span> <span class=s2>&#34;/var/log/journal&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>  max_age</span> <span class=o>=</span> <span class=s2>&#34;24h&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>  labels</span> <span class=o>=</span> {
+</span></span><span class=line><span class=cl><span class=n>    job</span>  <span class=o>=</span> <span class=s2>&#34;systemd-journal&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    host</span> <span class=o>=</span> <span class=k>env</span><span class=p>(</span><span class=s2>&#34;ALLOY_HOSTNAME&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>  forward_to</span> <span class=o>=</span> <span class=p>[</span><span class=k>loki</span><span class=p>.</span><span class=k>write</span><span class=p>.</span><span class=k>default</span><span class=p>.</span><span class=k>receiver</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div><p>这里的 label 设计很重要。Loki 的原则是：<strong>低基数信息放 label，高基数信息留在日志正文里查询</strong>。</p><p>推荐 label：</p><div class=table-wrapper><table><thead><tr><th>Label</th><th>例子</th><th>说明</th></tr></thead><tbody><tr><td><code>host</code></td><td><code>pve1</code></td><td>主机名，基数低</td></tr><tr><td><code>job</code></td><td><code>docker</code> / <code>systemd-journal</code></td><td>日志来源</td></tr><tr><td><code>container</code></td><td><code>caddy</code></td><td>容器名</td></tr><tr><td><code>compose_service</code></td><td><code>grafana</code></td><td>Compose 服务名</td></tr><tr><td><code>stream</code></td><td><code>stdout</code> / <code>stderr</code></td><td>Docker 输出流</td></tr></tbody></table></div><p>不要把这些字段做成 label：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>request_id、trace_id、user_id、email、完整 URL、客户端 IP、时间戳
+</span></span></code></pre></td></tr></table></div></div><p>这些字段变化太快，会制造高基数，Loki 查询会变慢，内存压力也会明显增加。</p><h2 id=7-启动与验证>7. 启动与验证</h2><p>启动服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> ~/loki-stack
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span></code></pre></td></tr></table></div></div><p>查看容器状态：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose ps
+</span></span></code></pre></td></tr></table></div></div><p>验证 Loki：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -f http://localhost:3100/ready
+</span></span></code></pre></td></tr></table></div></div><p>正常会返回：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>ready
+</span></span></code></pre></td></tr></table></div></div><p>验证 Alloy：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -f http://localhost:12345/-/ready
+</span></span></code></pre></td></tr></table></div></div><p>查看 Alloy 自身日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker logs -f alloy
+</span></span></code></pre></td></tr></table></div></div><p>Grafana 访问：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>http://你的服务器IP:3000
+</span></span></code></pre></td></tr></table></div></div><p>默认账号密码来自 Compose：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>admin / change-this-password
+</span></span></code></pre></td></tr></table></div></div><p>首次登录后立刻改密码，或者在 Compose 里提前改掉 <code>GF_SECURITY_ADMIN_PASSWORD</code>。</p><h2 id=8-常用-logql-查询>8. 常用 LogQL 查询</h2><p>进入 Grafana -> Explore -> Loki，先试下面这些查询。</p><p>查看所有 Docker 日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>{job=&#34;docker&#34;}
+</span></span></code></pre></td></tr></table></div></div><p>查看某台主机：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>{job=&#34;docker&#34;, host=&#34;pve1&#34;}
+</span></span></code></pre></td></tr></table></div></div><p>查看某个 Compose 服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>{job=&#34;docker&#34;, compose_service=&#34;caddy&#34;}
+</span></span></code></pre></td></tr></table></div></div><p>只看 stderr：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>{job=&#34;docker&#34;, stream=&#34;stderr&#34;}
+</span></span></code></pre></td></tr></table></div></div><p>查看 systemd journal：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>{job=&#34;systemd-journal&#34;}
+</span></span></code></pre></td></tr></table></div></div><p>查找错误关键词：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>{job=&#34;systemd-journal&#34;} |= &#34;error&#34;
+</span></span></code></pre></td></tr></table></div></div><p>如果应用输出 JSON 日志，可以临时解析：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>{job=&#34;docker&#34;, compose_service=&#34;app&#34;} | json
+</span></span></code></pre></td></tr></table></div></div><p>统计 5 分钟内每个服务的错误数量：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>sum by (host, compose_service) (
+</span></span><span class=line><span class=cl>  count_over_time({job=&#34;docker&#34;} |= &#34;error&#34; [5m])
+</span></span><span class=line><span class=cl>)
+</span></span></code></pre></td></tr></table></div></div><p>这个查询很适合做 Grafana 面板：某个服务突然刷错误时，一眼就能看到是哪台机器、哪个 Compose 服务在出问题。</p><h2 id=9-多节点接入每台机器跑一个-alloy>9. 多节点接入：每台机器跑一个 Alloy</h2><p>中心节点只需要开放 Loki 的内网地址，比如：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>http://192.168.1.20:3100/loki/api/v1/push
+</span></span></code></pre></td></tr></table></div></div><p>其他 Docker 主机创建一个精简 Alloy Agent：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p ~/alloy-agent/alloy
+</span></span><span class=line><span class=cl><span class=nb>cd</span> ~/alloy-agent
+</span></span><span class=line><span class=cl>cp ~/loki-stack/alloy/config.alloy ./alloy/config.alloy
+</span></span></code></pre></td></tr></table></div></div><p><code>docker-compose.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>alloy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>grafana/alloy:v1.16.1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>alloy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>user</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0:0&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>run</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- --<span class=l>server.http.listen-addr=0.0.0.0:12345</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- --<span class=l>storage.path=/var/lib/alloy/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/etc/alloy/config.alloy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ALLOY_HOSTNAME</span><span class=p>:</span><span class=w> </span><span class=l>${ALLOY_HOSTNAME}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>LOKI_URL</span><span class=p>:</span><span class=w> </span><span class=l>${LOKI_URL}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;12345:12345&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./alloy/config.alloy:/etc/alloy/config.alloy:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./data/alloy:/var/lib/alloy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/run/docker.sock:/var/run/docker.sock:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/log/journal:/var/log/journal:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/etc/machine-id:/etc/machine-id:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>启动：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>export</span> <span class=nv>ALLOY_HOSTNAME</span><span class=o>=</span><span class=s2>&#34;</span><span class=k>$(</span>hostname -s<span class=k>)</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl><span class=nb>export</span> <span class=nv>LOKI_URL</span><span class=o>=</span><span class=s2>&#34;http://192.168.1.20:3100/loki/api/v1/push&#34;</span>
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span></code></pre></td></tr></table></div></div><p>如果 Loki 放在反向代理后面，例如 <code>https://logs.example.com</code>，则：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>export</span> <span class=nv>LOKI_URL</span><span class=o>=</span><span class=s2>&#34;https://logs.example.com/loki/api/v1/push&#34;</span>
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span></code></pre></td></tr></table></div></div><p>生产一点的做法是把 <code>LOKI_URL</code> 写入 <code>.env</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt; .env <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>ALLOY_HOSTNAME=pve1
+</span></span></span><span class=line><span class=cl><span class=s>LOKI_URL=http://192.168.1.20:3100/loki/api/v1/push
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=10-docker-日志轮转也要做>10. Docker 日志轮转也要做</h2><p>集中日志不等于本机日志可以无限增长。Docker 默认日志如果不限制，某些刷屏容器能把系统盘写满。建议在所有 Docker 主机设置日志轮转。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo tee /etc/docker/daemon.json &gt;/dev/null <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>{
+</span></span></span><span class=line><span class=cl><span class=s>  &#34;log-driver&#34;: &#34;json-file&#34;,
+</span></span></span><span class=line><span class=cl><span class=s>  &#34;log-opts&#34;: {
+</span></span></span><span class=line><span class=cl><span class=s>    &#34;max-size&#34;: &#34;10m&#34;,
+</span></span></span><span class=line><span class=cl><span class=s>    &#34;max-file&#34;: &#34;3&#34;
+</span></span></span><span class=line><span class=cl><span class=s>  }
+</span></span></span><span class=line><span class=cl><span class=s>}
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>sudo systemctl restart docker
+</span></span></code></pre></td></tr></table></div></div><p>注意：重启 Docker 会影响正在运行的容器，建议维护窗口执行。执行后检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker info --format <span class=s1>&#39;{{.LoggingDriver}}&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>查看单个容器是否还能被 Docker API 读取日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker logs --tail<span class=o>=</span><span class=m>20</span> &lt;container_name&gt;
+</span></span></code></pre></td></tr></table></div></div><p>只要 <code>docker logs</code> 能正常看到日志，Alloy 的 <code>loki.source.docker</code> 通常就能采集。</p><h2 id=11-踩坑记录>11. 踩坑记录</h2><h3 id=-1-varlogjournal-不存在>❌ 1. <code>/var/log/journal</code> 不存在</h3><p>有些系统默认使用 volatile journal，日志在 <code>/run/log/journal</code>，重启就没了。先检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ls -ld /var/log/journal
+</span></span></code></pre></td></tr></table></div></div><p>如果不存在，开启持久化 journal：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo mkdir -p /var/log/journal
+</span></span><span class=line><span class=cl>sudo systemctl restart systemd-journald
+</span></span></code></pre></td></tr></table></div></div><p>然后重启 Alloy：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose restart alloy
+</span></span></code></pre></td></tr></table></div></div><h3 id=-2-alloy-没权限读-journal>❌ 2. Alloy 没权限读 journal</h3><p>表现是 Docker 日志有，systemd 日志没有。优先检查 Alloy 日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker logs alloy <span class=p>|</span> grep -i journal
+</span></span></code></pre></td></tr></table></div></div><p>解决思路：</p><ul><li>Compose 里保留 <code>user: "0:0"</code>；</li><li>确认挂载了 <code>/var/log/journal</code>；</li><li>确认挂载了 <code>/etc/machine-id</code>；</li><li>如果系统实际日志在 <code>/run/log/journal</code>，需要改挂载路径和 Alloy 配置里的 <code>path</code>。</li></ul><h3 id=-3-loki-暴露到公网>❌ 3. Loki 暴露到公网</h3><p>本文 Loki 配置关闭了认证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>auth_enabled</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这只适合内网。如果必须跨公网推送日志，至少用 WireGuard/Tailscale，或者在 Caddy/Traefik 上加 Basic Auth、mTLS、访问源 IP 限制。Grafana 可以放在反代后做登录，Loki push endpoint 不建议裸奔。</p><h3 id=-4-label-设计太激进>❌ 4. Label 设计太激进</h3><p>很多人一开始会把 <code>ip</code>、<code>path</code>、<code>request_id</code> 都提成 label，短期看查询很方便，长期就是灾难。Loki 的索引对象是 label 组合，label 基数过高会导致查询和写入都变慢。</p><p>正确思路：</p><ul><li><code>host</code>、<code>service</code>、<code>container</code> 这种稳定字段做 label；</li><li><code>request_id</code>、<code>user_id</code> 留在日志正文；</li><li>查询时用 <code>|= "关键词"</code>、<code>| json</code>、<code>| logfmt</code> 临时解析。</li></ul><h2 id=12-总结>12. 总结</h2><p>这套 Loki + Alloy 日志方案不追求大而全，目标是解决 Homelab 里最实际的问题：<strong>不用 SSH 到每台机器上手动 grep 日志</strong>。</p><div class=table-wrapper><table><thead><tr><th>场景</th><th>推荐做法</th></tr></thead><tbody><tr><td>单台 Docker 主机</td><td>Loki + Grafana + Alloy 同机 Compose 部署</td></tr><tr><td>多台 Linux/Docker 主机</td><td>中心 Loki，每台主机一个 Alloy</td></tr><tr><td>日志保留</td><td>先从 7 天开始，确认容量后再调到 30 天</td></tr><tr><td>安全</td><td>Loki 只走内网/VPN，不公网裸露</td></tr><tr><td>查询</td><td>低基数 label 过滤，高基数字段用 LogQL 管道解析</td></tr></tbody></table></div><p>如果你已经有 Prometheus + Grafana 监控，Loki 正好补上“日志”这一块：指标告诉你<strong>哪里异常</strong>，日志告诉你<strong>为什么异常</strong>。两者结合起来，Homelab 排障效率会比纯 SSH 查日志高很多。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

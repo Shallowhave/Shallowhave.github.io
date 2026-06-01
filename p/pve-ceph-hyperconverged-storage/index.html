@@ -1,0 +1,410 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Homelab 中用 Proxmox VE 内置 pveceph 搭建三节点 Ceph/RBD 超融合存储，覆盖网络规划、MON/MGR/OSD 创建、Pool 参数、VM 迁移测试、性能验证、故障恢复与踩坑经验。"><title>三台小主机也能玩分布式存储：Proxmox VE + Ceph 超融合实战</title><link rel=canonical href=https://shallowhave.github.io/p/pve-ceph-hyperconverged-storage/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="三台小主机也能玩分布式存储：Proxmox VE + Ceph 超融合实战"><meta property='og:description' content="在 Homelab 中用 Proxmox VE 内置 pveceph 搭建三节点 Ceph/RBD 超融合存储，覆盖网络规划、MON/MGR/OSD 创建、Pool 参数、VM 迁移测试、性能验证、故障恢复与踩坑经验。"><meta property='og:url' content='https://shallowhave.github.io/p/pve-ceph-hyperconverged-storage/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-31T09:22:06+08:00'><meta property='article:modified_time' content='2026-05-31T09:22:06+08:00'><meta name=twitter:title content="三台小主机也能玩分布式存储：Proxmox VE + Ceph 超融合实战"><meta name=twitter:description content="在 Homelab 中用 Proxmox VE 内置 pveceph 搭建三节点 Ceph/RBD 超融合存储，覆盖网络规划、MON/MGR/OSD 创建、Pool 参数、VM 迁移测试、性能验证、故障恢复与踩坑经验。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言什么时候-homelab-才值得上-ceph>前言：什么时候 Homelab 才值得上 Ceph？</a></li><li><a href=#1-架构与硬件规划>1. 架构与硬件规划</a><ol><li><a href=#11-推荐拓扑>1.1 推荐拓扑</a></li><li><a href=#12-网络规划不要让-ceph-和业务流量抢一根网线>1.2 网络规划：不要让 Ceph 和业务流量抢一根网线</a></li></ol></li><li><a href=#2-部署前检查>2. 部署前检查</a></li><li><a href=#3-安装-ceph-包>3. 安装 Ceph 包</a></li><li><a href=#4-初始化-ceph-集群>4. 初始化 Ceph 集群</a></li><li><a href=#5-创建-mon-与-mgr>5. 创建 MON 与 MGR</a></li><li><a href=#6-创建-osd一块盘一个-osd>6. 创建 OSD：一块盘一个 OSD</a></li><li><a href=#7-创建-rbd-pool-并接入-pve>7. 创建 RBD Pool 并接入 PVE</a></li><li><a href=#8-把虚拟机磁盘迁移到-ceph>8. 把虚拟机磁盘迁移到 Ceph</a></li><li><a href=#9-验证迁移和故障恢复>9. 验证迁移和故障恢复</a><ol><li><a href=#91-live-migration-测试>9.1 Live Migration 测试</a></li><li><a href=#92-模拟一块-osd-下线>9.2 模拟一块 OSD 下线</a></li></ol></li><li><a href=#10-简单性能测试>10. 简单性能测试</a></li><li><a href=#11-常用运维命令清单>11. 常用运维命令清单</a></li><li><a href=#12-踩坑记录>12. 踩坑记录</a><ol><li><a href=#-坑-1三节点但只有两个-osd>❌ 坑 1：三节点但只有两个 OSD</a></li><li><a href=#-坑-2用-usb-硬盘做-osd>❌ 坑 2：用 USB 硬盘做 OSD</a></li><li><a href=#-坑-3把-ceph-放在-1gbe-管理网>❌ 坑 3：把 Ceph 放在 1GbE 管理网</a></li><li><a href=#-坑-4节点容量差异太大>❌ 坑 4：节点容量差异太大</a></li><li><a href=#-坑-5误以为-ceph-等于备份>❌ 坑 5：误以为 Ceph 等于备份</a></li></ol></li><li><a href=#总结ceph-很强但别把它当默认答案>总结：Ceph 很强，但别把它当默认答案</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/pve-ceph-hyperconverged-storage/>三台小主机也能玩分布式存储：Proxmox VE + Ceph 超融合实战</a></h2><h3 class=article-subtitle>在 Homelab 中用 Proxmox VE 内置 pveceph 搭建三节点 Ceph/RBD 超融合存储，覆盖网络规划、MON/MGR/OSD 创建、Pool 参数、VM 迁移测试、性能验证、故障恢复与踩坑经验。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 31, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 8 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言什么时候-homelab-才值得上-ceph>前言：什么时候 Homelab 才值得上 Ceph？</h2><p>很多 Homelab 玩家第一次看到 Proxmox VE 里的 Ceph 菜单，都会有一种「这不就是企业级分布式存储吗，我也要开！」的冲动。但 Ceph 不是魔法，它用<strong>网络、CPU、内存和磁盘数量</strong>换来分布式副本、高可用和在线迁移能力。硬件太弱、网络太慢、磁盘混搭太随意，最后得到的不是高可用，而是一套很难排障的慢存储。</p><p>如果你只有一台 PVE，优先选本地 ZFS；如果你有 NAS，NFS/iSCSI 会更简单；如果你已经有 <strong>3 台以上 PVE 节点</strong>，每台都有独立 SSD/NVMe，并且能给存储准备一张 2.5G/10G 网卡，那么 Ceph 才开始有意义。</p><p>本文记录一套适合 Homelab 的 Proxmox VE + Ceph 超融合落地方案：三台 PVE 既跑虚拟机，也贡献本地磁盘做 OSD，VM 磁盘放到 RBD Pool 中。任意一台节点维护或宕机时，虚拟机可以迁移到其他节点继续运行。</p><blockquote><p>目标不是堆概念，而是跑通一套可维护的 Ceph：能部署、能看健康状态、能测试迁移、能处理 OSD 故障。</p></blockquote><hr><h2 id=1-架构与硬件规划>1. 架构与硬件规划</h2><h3 id=11-推荐拓扑>1.1 推荐拓扑</h3><div class=table-wrapper><table><thead><tr><th>组件</th><th style=text-align:right>Homelab 最低建议</th><th style=text-align:right>更推荐配置</th></tr></thead><tbody><tr><td>PVE 节点</td><td style=text-align:right>3 台</td><td style=text-align:right>3/5 台奇数节点</td></tr><tr><td>系统盘</td><td style=text-align:right>独立 SSD</td><td style=text-align:right>独立 SSD + 备份</td></tr><tr><td>Ceph OSD</td><td style=text-align:right>每节点 1 块 SSD/NVMe</td><td style=text-align:right>每节点 2 块以上同型号 SSD/NVMe</td></tr><tr><td>内存</td><td style=text-align:right>每节点 16GB</td><td style=text-align:right>每节点 32GB+</td></tr><tr><td>存储网络</td><td style=text-align:right>2.5GbE 独立 VLAN</td><td style=text-align:right>10GbE 独立交换/网段 🏆</td></tr><tr><td>副本数</td><td style=text-align:right>size=3/min_size=2</td><td style=text-align:right>size=3/min_size=2</td></tr></tbody></table></div><p>Ceph 的核心组件可以简单理解为：</p><ul><li><strong>MON（Monitor）</strong>：保存集群地图，负责投票和一致性。三节点至少每节点一个 MON。</li><li><strong>MGR（Manager）</strong>：提供管理接口、性能统计、Dashboard 等能力。建议至少两个。</li><li><strong>OSD（Object Storage Daemon）</strong>：真正存数据的进程，一块磁盘通常对应一个 OSD。</li><li><strong>Pool</strong>：逻辑存储池，PVE VM 磁盘通常使用 RBD Pool。</li><li><strong>PG（Placement Group）</strong>：数据分布的中间层，新版本 Ceph 可以开启 autoscale，Homelab 不必手动硬算 PG。</li></ul><h3 id=12-网络规划不要让-ceph-和业务流量抢一根网线>1.2 网络规划：不要让 Ceph 和业务流量抢一根网线</h3><p>Ceph 最怕网络抖动。VM 业务流量、Corosync 集群心跳、Ceph 副本同步如果全挤在一个网段，迁移或恢复时很容易出现延迟尖刺。推荐至少拆成三类网络：</p><div class=table-wrapper><table><thead><tr><th>网络</th><th>示例网段</th><th>用途</th></tr></thead><tbody><tr><td>管理网络</td><td><code>192.168.10.0/24</code></td><td>PVE Web、SSH、API</td></tr><tr><td>Corosync 网络</td><td><code>192.168.20.0/24</code></td><td>PVE 集群心跳，低延迟优先</td></tr><tr><td>Ceph 网络</td><td><code>10.10.10.0/24</code></td><td>OSD 副本、恢复、客户端访问</td></tr></tbody></table></div><p>如果只有双网口，可以把 Ceph 单独放到 VLAN：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=c1># /etc/network/interfaces 示例：eno2 作为 Ceph 专用 VLAN Trunk</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=na>auto eno2</span>
+</span></span><span class=line><span class=cl><span class=na>iface eno2 inet manual</span>
+</span></span><span class=line><span class=cl>    <span class=na>mtu 9000</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=na>auto eno2.30</span>
+</span></span><span class=line><span class=cl><span class=na>iface eno2.30 inet static</span>
+</span></span><span class=line><span class=cl>    <span class=na>address 10.10.10.11/24</span>
+</span></span><span class=line><span class=cl>    <span class=na>vlan-raw-device eno2</span>
+</span></span><span class=line><span class=cl>    <span class=na>mtu 9000</span>
+</span></span></code></pre></td></tr></table></div></div><p>三台节点分别使用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>pve1: 10.10.10.11
+</span></span><span class=line><span class=cl>pve2: 10.10.10.12
+</span></span><span class=line><span class=cl>pve3: 10.10.10.13
+</span></span></code></pre></td></tr></table></div></div><p>如果开启 Jumbo Frame，<strong>交换机端口、PVE 网卡、VLAN 子接口必须全部 MTU 一致</strong>。否则 <code>ping</code> 小包正常，大量恢复数据时却随机卡顿。</p><p>验证 MTU：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 8972 + 28 字节 ICMP/IP 头 = 9000 MTU</span>
+</span></span><span class=line><span class=cl>ping -M <span class=k>do</span> -s <span class=m>8972</span> 10.10.10.12
+</span></span><span class=line><span class=cl>ping -M <span class=k>do</span> -s <span class=m>8972</span> 10.10.10.13
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=2-部署前检查>2. 部署前检查</h2><p>先确认 PVE 集群健康：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvecm status
+</span></span><span class=line><span class=cl>pvecm nodes
+</span></span></code></pre></td></tr></table></div></div><p>重点看：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Quorate:          Yes
+</span></span><span class=line><span class=cl>Expected votes:   3
+</span></span><span class=line><span class=cl>Total votes:      3
+</span></span></code></pre></td></tr></table></div></div><p>检查时间同步。Ceph 对时间漂移敏感，PVE 默认使用 chrony/systemd-timesyncd，但最好确认：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>timedatectl
+</span></span><span class=line><span class=cl>chronyc tracking 2&gt;/dev/null <span class=o>||</span> <span class=nb>true</span>
+</span></span></code></pre></td></tr></table></div></div><p>检查待加入 Ceph 的磁盘。<strong>不要把系统盘拿去做 OSD</strong>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>lsblk -o NAME,SIZE,TYPE,MODEL,SERIAL,FSTYPE,MOUNTPOINT
+</span></span></code></pre></td></tr></table></div></div><p>假设每台节点的 OSD 盘都是 <code>/dev/nvme1n1</code>。如果磁盘以前做过 ZFS/LVM，需要先清理签名：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 危险操作：确认盘符无误再执行</span>
+</span></span><span class=line><span class=cl>wipefs -a /dev/nvme1n1
+</span></span><span class=line><span class=cl>sgdisk --zap-all /dev/nvme1n1
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=3-安装-ceph-包>3. 安装 Ceph 包</h2><p>在每个 PVE 节点执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>apt update
+</span></span><span class=line><span class=cl>pveceph install --repository no-subscription
+</span></span></code></pre></td></tr></table></div></div><p>企业订阅环境可以改成：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pveceph install --repository enterprise
+</span></span></code></pre></td></tr></table></div></div><p>安装后确认命令可用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ceph --version
+</span></span><span class=line><span class=cl>pveceph status
+</span></span></code></pre></td></tr></table></div></div><p>如果你的 PVE 版本支持 Reef/Squid 多版本选择，建议整个集群保持一致，不要一台 Reef、一台 Squid 混跑。升级 Ceph 要按 Proxmox 官方文档分阶段做，别在生产 VM 正在写大量数据时直接滚动升级。</p><hr><h2 id=4-初始化-ceph-集群>4. 初始化 Ceph 集群</h2><p>只在第一台节点执行初始化：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pveceph init --network 10.10.10.0/24
+</span></span></code></pre></td></tr></table></div></div><p>如果你有更豪华的双 Ceph 网络，可以把 public 和 cluster network 拆开：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pveceph init <span class=se>\
+</span></span></span><span class=line><span class=cl>  --network 10.10.10.0/24 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --cluster-network 10.10.20.0/24
+</span></span></code></pre></td></tr></table></div></div><ul><li><code>public_network</code>：PVE/RBD 客户端访问 Ceph 的网络</li><li><code>cluster_network</code>：OSD 之间复制、恢复、心跳使用的网络</li></ul><p>Homelab 多数情况下只有一张专用存储网卡，直接使用 <code>--network</code> 即可。初始化后配置会写到 <code>/etc/pve/ceph.conf</code>，并通过 PVE 的 pmxcfs 分发到所有节点：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat /etc/pve/ceph.conf
+</span></span></code></pre></td></tr></table></div></div><p>典型配置片段：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=k>[global]</span>
+</span></span><span class=line><span class=cl>    <span class=na>auth_client_required</span> <span class=o>=</span> <span class=s>cephx
+</span></span></span><span class=line><span class=cl><span class=s>    auth_cluster_required = cephx
+</span></span></span><span class=line><span class=cl><span class=s>    auth_service_required = cephx
+</span></span></span><span class=line><span class=cl><span class=s>    cluster_network = 10.10.10.0/24
+</span></span></span><span class=line><span class=cl><span class=s>    public_network = 10.10.10.0/24
+</span></span></span><span class=line><span class=cl><span class=s>    fsid = xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+</span></span></span><span class=line><span class=cl><span class=s>    mon_allow_pool_delete = true</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=5-创建-mon-与-mgr>5. 创建 MON 与 MGR</h2><p>每台节点创建一个 MON：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在 pve1 上</span>
+</span></span><span class=line><span class=cl>pveceph mon create
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 在 pve2 上</span>
+</span></span><span class=line><span class=cl>pveceph mon create
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 在 pve3 上</span>
+</span></span><span class=line><span class=cl>pveceph mon create
+</span></span></code></pre></td></tr></table></div></div><p>创建 MGR，至少两个：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># pve1</span>
+</span></span><span class=line><span class=cl>pveceph mgr create
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># pve2</span>
+</span></span><span class=line><span class=cl>pveceph mgr create
+</span></span></code></pre></td></tr></table></div></div><p>查看状态：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ceph -s
+</span></span><span class=line><span class=cl>ceph mon stat
+</span></span><span class=line><span class=cl>ceph mgr stat
+</span></span></code></pre></td></tr></table></div></div><p>健康状态至少应该接近：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>cluster:
+</span></span><span class=line><span class=cl>  health: HEALTH_OK
+</span></span><span class=line><span class=cl>services:
+</span></span><span class=line><span class=cl>  mon: 3 daemons, quorum pve1,pve2,pve3
+</span></span><span class=line><span class=cl>  mgr: pve1(active), standbys: pve2
+</span></span></code></pre></td></tr></table></div></div><p>如果 MON 没有 quorum，先不要继续创建 OSD。优先检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat /etc/hosts
+</span></span><span class=line><span class=cl>ip addr
+</span></span><span class=line><span class=cl>ping 10.10.10.12
+</span></span><span class=line><span class=cl>ping 10.10.10.13
+</span></span><span class=line><span class=cl>journalctl -u ceph-mon@<span class=k>$(</span>hostname<span class=k>)</span> -n <span class=m>100</span> --no-pager
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=6-创建-osd一块盘一个-osd>6. 创建 OSD：一块盘一个 OSD</h2><p>在每台节点执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pveceph osd create /dev/nvme1n1
+</span></span></code></pre></td></tr></table></div></div><p>创建完成后查看：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ceph osd tree
+</span></span><span class=line><span class=cl>ceph osd df tree
+</span></span><span class=line><span class=cl>ceph -s
+</span></span></code></pre></td></tr></table></div></div><p>示例结构：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>ID  CLASS  WEIGHT   TYPE NAME
+</span></span><span class=line><span class=cl>-1         2.79474  root default
+</span></span><span class=line><span class=cl>-3         0.93158      host pve1
+</span></span><span class=line><span class=cl> 0    ssd  0.93158          osd.0
+</span></span><span class=line><span class=cl>-5         0.93158      host pve2
+</span></span><span class=line><span class=cl> 1    ssd  0.93158          osd.1
+</span></span><span class=line><span class=cl>-7         0.93158      host pve3
+</span></span><span class=line><span class=cl> 2    ssd  0.93158          osd.2
+</span></span></code></pre></td></tr></table></div></div><p>这里有两个 Homelab 常见坑：</p><ol><li><strong>不要混用 HDD 和 SSD 做同一个 Pool</strong>。慢盘会拖垮整体延迟。</li><li><strong>不要每台节点 OSD 数量差异过大</strong>。例如 pve1 有 4 块盘，pve2/pve3 各 1 块，数据分布和恢复压力会很不均衡。</li></ol><p>如果确实有 SSD/HDD 混合，至少用 device class 和 CRUSH rule 分开：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ceph osd crush rule create-replicated replicated_ssd default host ssd
+</span></span><span class=line><span class=cl>ceph osd crush rule create-replicated replicated_hdd default host hdd
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=7-创建-rbd-pool-并接入-pve>7. 创建 RBD Pool 并接入 PVE</h2><p>VM 磁盘使用 RBD Pool。创建一个名为 <code>rbd-ssd</code> 的池：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pveceph pool create rbd-ssd <span class=se>\
+</span></span></span><span class=line><span class=cl>  --size <span class=m>3</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --min_size <span class=m>2</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --pg_autoscale_mode on <span class=se>\
+</span></span></span><span class=line><span class=cl>  --application rbd <span class=se>\
+</span></span></span><span class=line><span class=cl>  --add_storages <span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>参数解释：</p><div class=table-wrapper><table><thead><tr><th>参数</th><th style=text-align:right>建议值</th><th>说明</th></tr></thead><tbody><tr><td><code>size</code></td><td style=text-align:right>3</td><td>每份数据保留 3 个副本</td></tr><tr><td><code>min_size</code></td><td style=text-align:right>2</td><td>至少 2 个副本在线才允许写入</td></tr><tr><td><code>pg_autoscale_mode</code></td><td style=text-align:right>on</td><td>让 Ceph 自动调整 PG</td></tr><tr><td><code>application</code></td><td style=text-align:right>rbd</td><td>标记用于块设备</td></tr><tr><td><code>add_storages</code></td><td style=text-align:right>1</td><td>自动加入 PVE Storage</td></tr></tbody></table></div><p>确认 PVE 存储已加入：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvesm status
+</span></span><span class=line><span class=cl>cat /etc/pve/storage.cfg
+</span></span></code></pre></td></tr></table></div></div><p>典型 <code>storage.cfg</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>rbd: rbd-ssd</span>
+</span></span><span class=line><span class=cl>    <span class=na>content images,rootdir</span>
+</span></span><span class=line><span class=cl>    <span class=na>krbd 0</span>
+</span></span><span class=line><span class=cl>    <span class=na>pool rbd-ssd</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果想手动添加，也可以：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvesm add rbd rbd-ssd <span class=se>\
+</span></span></span><span class=line><span class=cl>  --pool rbd-ssd <span class=se>\
+</span></span></span><span class=line><span class=cl>  --content images,rootdir <span class=se>\
+</span></span></span><span class=line><span class=cl>  --krbd <span class=m>0</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=8-把虚拟机磁盘迁移到-ceph>8. 把虚拟机磁盘迁移到 Ceph</h2><p>创建新 VM 时直接选择 <code>rbd-ssd</code> 存储即可。已有 VM 可以在线迁移磁盘：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 查看 VM 磁盘</span>
+</span></span><span class=line><span class=cl>qm config <span class=m>101</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 将 scsi0 迁移到 Ceph RBD</span>
+</span></span><span class=line><span class=cl>qm move_disk <span class=m>101</span> scsi0 rbd-ssd --delete <span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>推荐 VM 磁盘配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>101</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --scsihw virtio-scsi-single <span class=se>\
+</span></span></span><span class=line><span class=cl>  --scsi0 rbd-ssd:vm-101-disk-0,discard<span class=o>=</span>on,iothread<span class=o>=</span><span class=m>1</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --agent <span class=nv>enabled</span><span class=o>=</span><span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>开启 discard 后，Guest 内部删除数据可以回收 RBD 空间。Linux VM 内执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>systemctl <span class=nb>enable</span> --now fstrim.timer
+</span></span><span class=line><span class=cl>fstrim -av
+</span></span></code></pre></td></tr></table></div></div><p>Windows VM 则确认「优化驱动器」能识别精简置备磁盘，并安装 VirtIO 驱动。</p><hr><h2 id=9-验证迁移和故障恢复>9. 验证迁移和故障恢复</h2><h3 id=91-live-migration-测试>9.1 Live Migration 测试</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 从 pve1 迁移 VM 101 到 pve2</span>
+</span></span><span class=line><span class=cl>qm migrate <span class=m>101</span> pve2 --online
+</span></span></code></pre></td></tr></table></div></div><p>如果 VM 磁盘在 Ceph RBD 上，迁移时不需要复制整块磁盘，只迁移内存和运行状态，速度会明显快于本地盘迁移。</p><p>观察 Ceph 状态：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>watch -n <span class=m>2</span> <span class=s1>&#39;ceph -s; echo; ceph osd df tree&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=92-模拟一块-osd-下线>9.2 模拟一块 OSD 下线</h3><p>先找一个 OSD ID：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ceph osd tree
+</span></span></code></pre></td></tr></table></div></div><p>模拟下线：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ceph osd out osd.0
+</span></span><span class=line><span class=cl>ceph -s
+</span></span></code></pre></td></tr></table></div></div><p>此时会看到 PG remapped/backfill。等恢复完成后再放回：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ceph osd in osd.0
+</span></span><span class=line><span class=cl>ceph -s
+</span></span></code></pre></td></tr></table></div></div><p>如果是真实坏盘，流程应该是：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 标记 out，等待数据迁移</span>
+</span></span><span class=line><span class=cl>ceph osd out osd.0
+</span></span><span class=line><span class=cl>watch -n <span class=m>5</span> ceph -s
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 停止 OSD</span>
+</span></span><span class=line><span class=cl>systemctl stop ceph-osd@0
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. 从集群移除</span>
+</span></span><span class=line><span class=cl>pveceph osd destroy <span class=m>0</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 4. 换盘后重新创建</span>
+</span></span><span class=line><span class=cl>wipefs -a /dev/nvme1n1
+</span></span><span class=line><span class=cl>sgdisk --zap-all /dev/nvme1n1
+</span></span><span class=line><span class=cl>pveceph osd create /dev/nvme1n1
+</span></span></code></pre></td></tr></table></div></div><p>不要在 <code>HEALTH_WARN</code> 且还有大量 backfill 时连续拔多块盘。三副本不是免死金牌，<code>size=3/min_size=2</code> 只能容忍一个故障域丢失；如果第二台节点也出问题，写入会被阻塞，严重时数据不可用。</p><hr><h2 id=10-简单性能测试>10. 简单性能测试</h2><p>在测试 VM 里安装 fio：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>apt update
+</span></span><span class=line><span class=cl>apt install -y fio
+</span></span></code></pre></td></tr></table></div></div><p>随机 4K 读写测试：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>fio --name<span class=o>=</span>rbd-4k-randrw <span class=se>\
+</span></span></span><span class=line><span class=cl>  --filename<span class=o>=</span>/tmp/fio-test <span class=se>\
+</span></span></span><span class=line><span class=cl>  --size<span class=o>=</span>8G <span class=se>\
+</span></span></span><span class=line><span class=cl>  --direct<span class=o>=</span><span class=m>1</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --rw<span class=o>=</span>randrw <span class=se>\
+</span></span></span><span class=line><span class=cl>  --rwmixread<span class=o>=</span><span class=m>70</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --bs<span class=o>=</span>4k <span class=se>\
+</span></span></span><span class=line><span class=cl>  --iodepth<span class=o>=</span><span class=m>32</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --numjobs<span class=o>=</span><span class=m>4</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --runtime<span class=o>=</span><span class=m>120</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --time_based <span class=se>\
+</span></span></span><span class=line><span class=cl>  --group_reporting
+</span></span></code></pre></td></tr></table></div></div><p>顺序写测试：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>fio --name<span class=o>=</span>rbd-seqwrite <span class=se>\
+</span></span></span><span class=line><span class=cl>  --filename<span class=o>=</span>/tmp/fio-seq <span class=se>\
+</span></span></span><span class=line><span class=cl>  --size<span class=o>=</span>16G <span class=se>\
+</span></span></span><span class=line><span class=cl>  --direct<span class=o>=</span><span class=m>1</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --rw<span class=o>=</span>write <span class=se>\
+</span></span></span><span class=line><span class=cl>  --bs<span class=o>=</span>1M <span class=se>\
+</span></span></span><span class=line><span class=cl>  --iodepth<span class=o>=</span><span class=m>16</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --numjobs<span class=o>=</span><span class=m>1</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --runtime<span class=o>=</span><span class=m>120</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --time_based <span class=se>\
+</span></span></span><span class=line><span class=cl>  --group_reporting
+</span></span></code></pre></td></tr></table></div></div><p>一个很实用的判断方式：</p><div class=table-wrapper><table><thead><tr><th>现象</th><th>可能原因</th><th>排查命令</th></tr></thead><tbody><tr><td>延迟几十毫秒以上</td><td>网络拥塞/OSD 慢盘</td><td><code>ceph osd perf</code>、<code>iftop</code></td></tr><tr><td>写入速度只有单盘一半</td><td>2.5G/1G 网络瓶颈</td><td><code>iperf3 -c 10.10.10.12</code></td></tr><tr><td>迁移时 VM 卡顿</td><td>Ceph 与业务网络混用</td><td><code>ceph -s</code>、交换机端口统计</td></tr><tr><td>HEALTH_WARN 长期不恢复</td><td>PG/OSD 异常</td><td><code>ceph health detail</code></td></tr></tbody></table></div><p>测试完删除临时文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>rm -f /tmp/fio-test /tmp/fio-seq
+</span></span><span class=line><span class=cl>fstrim -av
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=11-常用运维命令清单>11. 常用运维命令清单</h2><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 集群总览</span>
+</span></span><span class=line><span class=cl>ceph -s
+</span></span><span class=line><span class=cl>ceph health detail
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># OSD 状态</span>
+</span></span><span class=line><span class=cl>ceph osd tree
+</span></span><span class=line><span class=cl>ceph osd df tree
+</span></span><span class=line><span class=cl>ceph osd perf
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Pool 与容量</span>
+</span></span><span class=line><span class=cl>ceph df
+</span></span><span class=line><span class=cl>ceph osd pool ls detail
+</span></span><span class=line><span class=cl>rbd -p rbd-ssd ls
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看某个 VM 磁盘映像</span>
+</span></span><span class=line><span class=cl>rbd -p rbd-ssd info vm-101-disk-0
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># PVE 存储状态</span>
+</span></span><span class=line><span class=cl>pvesm status
+</span></span><span class=line><span class=cl>pvesm list rbd-ssd
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 日志</span>
+</span></span><span class=line><span class=cl>journalctl -u <span class=s1>&#39;ceph-*&#39;</span> -n <span class=m>200</span> --no-pager
+</span></span></code></pre></td></tr></table></div></div><p>建议把 <code>ceph -s</code> 接入监控。最简单可以用 Node Exporter textfile collector，也可以使用 Prometheus 的 ceph exporter 或 Ceph MGR prometheus 模块：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ceph mgr module <span class=nb>enable</span> prometheus
+</span></span><span class=line><span class=cl>ceph config <span class=nb>set</span> mgr mgr/prometheus/server_addr 0.0.0.0
+</span></span><span class=line><span class=cl>ceph config <span class=nb>set</span> mgr mgr/prometheus/server_port <span class=m>9283</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后在 Prometheus 里抓取：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>scrape_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>job_name</span><span class=p>:</span><span class=w> </span><span class=l>ceph</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>static_configs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=nt>targets</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span>- <span class=m>10.10.10.11</span><span class=p>:</span><span class=m>9283</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span>- <span class=m>10.10.10.12</span><span class=p>:</span><span class=m>9283</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span>- <span class=m>10.10.10.13</span><span class=p>:</span><span class=m>9283</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><hr><h2 id=12-踩坑记录>12. 踩坑记录</h2><h3 id=-坑-1三节点但只有两个-osd>❌ 坑 1：三节点但只有两个 OSD</h3><p>Ceph MON 可以三节点 quorum，但数据副本靠 OSD。<code>size=3</code> 至少需要三个不同故障域的 OSD。只有两个 OSD 时，Pool 不是降级就是无法满足副本策略。</p><h3 id=-坑-2用-usb-硬盘做-osd>❌ 坑 2：用 USB 硬盘做 OSD</h3><p>USB 控制器重置、线材松动、省电休眠都会让 OSD 掉线。Ceph 会把它当成真实故障并触发恢复，恢复又继续打爆 USB 链路。Homelab 测试可以，长期运行不建议。</p><h3 id=-坑-3把-ceph-放在-1gbe-管理网>❌ 坑 3：把 Ceph 放在 1GbE 管理网</h3><p>Ceph 三副本写入不是「写一份就完事」，它还要复制到其他 OSD。1GbE 理论上限 125MB/s，实际多 VM 并发时很容易被打满。能上 10GbE 最好，最低也建议 2.5GbE 独立网络。</p><h3 id=-坑-4节点容量差异太大>❌ 坑 4：节点容量差异太大</h3><p>CRUSH 会按权重分布数据。某台节点容量明显更大并不代表它更快，恢复时反而可能承担更多数据迁移压力。Homelab 最省心的做法是：每节点同数量、同容量、同类型 SSD。</p><h3 id=-坑-5误以为-ceph-等于备份>❌ 坑 5：误以为 Ceph 等于备份</h3><p>Ceph 是高可用存储，不是备份。误删 VM、勒索软件、数据库逻辑损坏会被三副本同步得非常可靠。重要数据仍然要用 PBS、Restic、Borg 或异地备份做离线/版本化保护。</p><hr><h2 id=总结ceph-很强但别把它当默认答案>总结：Ceph 很强，但别把它当默认答案</h2><div class=table-wrapper><table><thead><tr><th>场景</th><th>推荐方案</th></tr></thead><tbody><tr><td>单节点 PVE</td><td>本地 ZFS 🏆</td></tr><tr><td>1-2 台 PVE + NAS</td><td>NFS/iSCSI</td></tr><tr><td>3 台以上 PVE、需要热迁移/HA</td><td>Ceph RBD ✅</td></tr><tr><td>低功耗小主机、只有 1GbE</td><td>不建议上 Ceph ❌</td></tr><tr><td>追求简单备份恢复</td><td>PBS/Restic，而不是 Ceph</td></tr></tbody></table></div><p>Proxmox VE 把 Ceph 集成得很顺手，<code>pveceph install/init/osd/pool</code> 几条命令就能搭出分布式存储。但真正决定体验的不是按钮，而是前期规划：<strong>独立高速网络、均衡 OSD、三副本策略、监控告警和外部备份</strong>。</p><p>如果你的 Homelab 已经从单机 PVE 走到三节点集群，Ceph 是下一块很值得折腾的拼图；如果还停留在一台小主机加几块盘，那就先把 ZFS、PBS、UPS 和监控做好。高可用的第一原则不是复杂，而是可理解、可恢复、可验证。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

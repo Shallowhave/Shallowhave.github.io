@@ -1,0 +1,528 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="用 Headscale 自建 Tailscale 兼容控制平面，覆盖 Docker Compose 部署、Caddy 反代、客户端注册、Subnet Router、ACL、MagicDNS、备份迁移与常见排障。"><title>把 Homelab 安全带出门：Headscale 自建 Tailscale 控制平面实战</title><link rel=canonical href=https://shallowhave.github.io/p/headscale-homelab-mesh-vpn/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="把 Homelab 安全带出门：Headscale 自建 Tailscale 控制平面实战"><meta property='og:description' content="用 Headscale 自建 Tailscale 兼容控制平面，覆盖 Docker Compose 部署、Caddy 反代、客户端注册、Subnet Router、ACL、MagicDNS、备份迁移与常见排障。"><meta property='og:url' content='https://shallowhave.github.io/p/headscale-homelab-mesh-vpn/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-06-01T01:22:03+08:00'><meta property='article:modified_time' content='2026-06-01T01:22:03+08:00'><meta name=twitter:title content="把 Homelab 安全带出门：Headscale 自建 Tailscale 控制平面实战"><meta name=twitter:description content="用 Headscale 自建 Tailscale 兼容控制平面，覆盖 Docker Compose 部署、Caddy 反代、客户端注册、Subnet Router、ACL、MagicDNS、备份迁移与常见排障。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言为什么有了-wireguard-还要折腾-headscale>前言：为什么有了 WireGuard 还要折腾 Headscale？</a></li><li><a href=#1-架构设计控制面数据面和-derp>1. 架构设计：控制面、数据面和 DERP</a></li><li><a href=#2-准备目录和-docker-compose>2. 准备目录和 Docker Compose</a></li><li><a href=#3-headscale-配置文件>3. Headscale 配置文件</a></li><li><a href=#4-caddy-反向代理与-https>4. Caddy 反向代理与 HTTPS</a></li><li><a href=#5-初始化与创建用户>5. 初始化与创建用户</a></li><li><a href=#6-客户端接入>6. 客户端接入</a><ol><li><a href=#61-linux-节点>6.1 Linux 节点</a></li><li><a href=#62-windowsmacos手机>6.2 Windows/macOS/手机</a></li></ol></li><li><a href=#7-配置-subnet-router带出整个内网>7. 配置 Subnet Router：带出整个内网</a></li><li><a href=#8-acl不要让所有设备访问所有端口>8. ACL：不要让所有设备访问所有端口</a></li><li><a href=#9-magicdns用名字访问-homelab-服务>9. MagicDNS：用名字访问 Homelab 服务</a></li><li><a href=#10-备份升级与迁移>10. 备份、升级与迁移</a></li><li><a href=#11-常见踩坑记录>11. 常见踩坑记录</a><ol><li><a href=#-1-server_url-写成了-http1270018080>❌ 1. <code>server_url</code> 写成了 <code>http://127.0.0.1:8080</code></a></li><li><a href=#-2-反代正常但客户端一直连不上>❌ 2. 反代正常，但客户端一直连不上</a></li><li><a href=#-3-subnet-router-已批准但访问内网服务超时>❌ 3. Subnet Router 已批准，但访问内网服务超时</a></li><li><a href=#-4-docker-网段和家里-lan-冲突>❌ 4. Docker 网段和家里 LAN 冲突</a></li></ol></li><li><a href=#12-安全加固清单>12. 安全加固清单</a></li><li><a href=#总结headscale-适合谁>总结：Headscale 适合谁？</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/headscale-homelab-mesh-vpn/>把 Homelab 安全带出门：Headscale 自建 Tailscale 控制平面实战</a></h2><h3 class=article-subtitle>用 Headscale 自建 Tailscale 兼容控制平面，覆盖 Docker Compose 部署、Caddy 反代、客户端注册、Subnet Router、ACL、MagicDNS、备份迁移与常见排障。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>Jun 01, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 9 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言为什么有了-wireguard-还要折腾-headscale>前言：为什么有了 WireGuard 还要折腾 Headscale？</h2><p>Homelab 远程访问最常见的方案是 WireGuard：性能好、配置简单、稳定。但随着设备变多，单纯的点对点 VPN 会遇到几个现实问题：手机、笔记本、云服务器、家里的 PVE 节点、NAS、Docker 主机都要互通；有些设备在双 NAT 或校园网后面；还希望按用户、标签、网段做访问控制。这时候 Tailscale 这类基于 WireGuard 的 Mesh VPN 就很香。</p><p>Headscale 是一个开源的 Tailscale 控制平面实现。简单说：<strong>数据面仍然走 WireGuard，控制面由你自己托管</strong>。客户端继续使用官方 Tailscale 客户端，只是登录服务器改成自己的 Headscale。对于 Homelab 来说，它很适合做一条「只暴露一个 HTTPS 入口，却能访问内网所有服务」的安全通道。</p><p>本文搭一套可直接落地的 Headscale：</p><ul><li>使用 Docker Compose 部署 Headscale；</li><li>通过 Caddy 提供 HTTPS 反向代理；</li><li>注册 Linux、Windows、手机等客户端；</li><li>配置一台 Subnet Router，把 <code>192.168.10.0/24</code> 内网带出门；</li><li>用 ACL 限制不同设备能访问的网段和端口；</li><li>给出备份、迁移、升级和排障命令。</li></ul><blockquote><p>如果你只需要极简远程接入，可以先看站内的 <a class=link href=/p/wireguard-homelab-vpn-guide/>WireGuard VPN 部署</a>；如果你已经有多台设备、多用户、多网段，Headscale 的集中管控会更省心。</p></blockquote><hr><h2 id=1-架构设计控制面数据面和-derp>1. 架构设计：控制面、数据面和 DERP</h2><p>Tailscale/Headscale 的关键点是分清两条路径：</p><div class=table-wrapper><table><thead><tr><th>组件</th><th>作用</th><th>是否经过 Headscale</th></tr></thead><tbody><tr><td>Headscale 控制面</td><td>设备注册、密钥分发、节点列表、ACL、MagicDNS</td><td>✅ 是</td></tr><tr><td>WireGuard 数据面</td><td>设备之间真实业务流量</td><td>❌ 正常不经过</td></tr><tr><td>DERP 中继</td><td>NAT 穿透失败时的中继通道</td><td>❌ 默认用 Tailscale 公共 DERP</td></tr><tr><td>Subnet Router</td><td>把某个内网网段宣告进 Tailnet</td><td>❌ 只转发数据流量</td></tr></tbody></table></div><p>很多人误以为 Headscale 会成为所有流量的代理瓶颈。实际上只要两台设备能 UDP 打洞成功，业务流量就是点对点直连；只有打洞失败时才会走 DERP 中继。Headscale 本身主要承载控制面，请求量不大，一台 1C/512MB 的 VPS 都能跑。</p><p>推荐部署位置：</p><div class=table-wrapper><table><thead><tr><th>部署位置</th><th>优点</th><th>缺点</th><th>适合场景</th></tr></thead><tbody><tr><td>公网 VPS</td><td>客户端随时可注册，证书好签发</td><td>多一台云主机</td><td>🏆 最推荐</td></tr><tr><td>家中公网 IP</td><td>低成本，完全自托管</td><td>需要端口转发，家宽变更风险</td><td>有公网 IPv4/IPv6</td></tr><tr><td>Cloudflare Tunnel 后面</td><td>不开端口</td><td>gRPC/长连接兼容性要仔细测</td><td>临时实验</td></tr></tbody></table></div><p>本文假设 Headscale 跑在一台公网 VPS 或有公网入口的 Docker 主机上，域名为：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>hs.example.com
+</span></span></code></pre></td></tr></table></div></div><p>请替换成你自己的域名。</p><hr><h2 id=2-准备目录和-docker-compose>2. 准备目录和 Docker Compose</h2><p>先创建目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo mkdir -p /opt/headscale/<span class=o>{</span>config,data<span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /opt/headscale
+</span></span></code></pre></td></tr></table></div></div><p>写入 <code>compose.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>headscale</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>headscale/headscale:0.26.0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>headscale</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w> </span><span class=l>serve</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./config:/etc/headscale</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./data:/var/lib/headscale</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># 只监听本机，交给 Caddy 反代到公网</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;127.0.0.1:8080:8080&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>TZ=Asia/Shanghai</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>healthcheck</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>test</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s2>&#34;CMD&#34;</span><span class=p>,</span><span class=w> </span><span class=s2>&#34;headscale&#34;</span><span class=p>,</span><span class=w> </span><span class=s2>&#34;version&#34;</span><span class=p>]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>interval</span><span class=p>:</span><span class=w> </span><span class=l>30s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>timeout</span><span class=p>:</span><span class=w> </span><span class=l>5s</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>retries</span><span class=p>:</span><span class=w> </span><span class=m>3</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这里没有把 <code>8080</code> 直接暴露到公网，而是只绑定 <code>127.0.0.1</code>。这样即使云防火墙误放行 8080，外部也无法绕过反代直接访问 Headscale。</p><p>启动前先准备配置文件。</p><hr><h2 id=3-headscale-配置文件>3. Headscale 配置文件</h2><p>创建 <code>/opt/headscale/config/config.yaml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>server_url</span><span class=p>:</span><span class=w> </span><span class=l>https://hs.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>listen_addr</span><span class=p>:</span><span class=w> </span><span class=m>0.0.0.0</span><span class=p>:</span><span class=m>8080</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>metrics_listen_addr</span><span class=p>:</span><span class=w> </span><span class=m>127.0.0.1</span><span class=p>:</span><span class=m>9090</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># Headscale 的持久化数据库。小规模 Homelab 用 SQLite 足够，备份也简单。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>database</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>sqlite</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>sqlite</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=l>/var/lib/headscale/db.sqlite</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 私有密钥路径，首次启动自动生成。这个文件和数据库都必须备份。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>private_key_path</span><span class=p>:</span><span class=w> </span><span class=l>/var/lib/headscale/private.key</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>noise</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>private_key_path</span><span class=p>:</span><span class=w> </span><span class=l>/var/lib/headscale/noise_private.key</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># IP 池：给 Tailnet 设备分配的虚拟地址，避免和家庭内网冲突。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>prefixes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>v4</span><span class=p>:</span><span class=w> </span><span class=m>100.64.0.0</span><span class=l>/10</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>v6</span><span class=p>:</span><span class=w> </span><span class=l>fd7a:115c:a1e0::/48</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>allocation</span><span class=p>:</span><span class=w> </span><span class=l>sequential</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># MagicDNS，方便用主机名访问设备。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>dns</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>magic_dns</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>base_domain</span><span class=p>:</span><span class=w> </span><span class=l>tailnet.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>nameservers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>global</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=m>223.5.5.5</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=m>119.29.29.29</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>search_domains</span><span class=p>:</span><span class=w> </span><span class=p>[]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>extra_records</span><span class=p>:</span><span class=w> </span><span class=p>[]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># ACL 策略文件。生产环境建议显式限制，不要长期全放通。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>policy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>mode</span><span class=p>:</span><span class=w> </span><span class=l>file</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=l>/etc/headscale/acl.hujson</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=c># 默认使用 Tailscale 公共 DERP，国内网络可后续自建 DERP 或优选区域。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>derp</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>server</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>enabled</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>urls</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=l>https://controlplane.tailscale.com/derpmap/default</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>auto_update_enabled</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>update_frequency</span><span class=p>:</span><span class=w> </span><span class=l>24h</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>log</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>level</span><span class=p>:</span><span class=w> </span><span class=l>info</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>几个容易踩坑的点：</p><ol><li><code>server_url</code> 必须是客户端能访问的最终 HTTPS 地址，不要写容器内地址；</li><li><code>prefixes.v4</code> 推荐保留 <code>100.64.0.0/10</code>，不要和家里 LAN、Docker 网段、K8s Pod CIDR 冲突；</li><li><code>private.key</code>、<code>noise_private.key</code> 和 <code>db.sqlite</code> 是核心资产，迁移时必须一起带走；</li><li><code>policy.path</code> 开启后，ACL 写错会影响客户端访问，改完要看日志确认加载成功。</li></ol><hr><h2 id=4-caddy-反向代理与-https>4. Caddy 反向代理与 HTTPS</h2><p>如果你已经有 Caddy 作为 Homelab 入口，可以加一段：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>hs.example.com</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>encode</span> <span class=s>zstd</span> <span class=s>gzip</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>127.0.0.1</span><span class=p>:</span><span class=mi>8080</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后重载：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+</span></span><span class=line><span class=cl>sudo systemctl reload caddy
+</span></span></code></pre></td></tr></table></div></div><p>如果 Caddy 也用 Docker，可以放到同一台主机上，核心原则仍然是：公网只开放 <code>80/443</code>，Headscale 的 <code>8080</code> 只允许本机或 Docker 内网访问。</p><p>用 curl 验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -I https://hs.example.com/health
+</span></span></code></pre></td></tr></table></div></div><p>正常应返回 <code>200 OK</code>。如果返回 502，先看 Caddy 是否能连到 <code>127.0.0.1:8080</code>；如果证书错误，检查域名解析和 80/443 端口是否放行。</p><hr><h2 id=5-初始化与创建用户>5. 初始化与创建用户</h2><p>启动 Headscale：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/headscale
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker logs -f headscale
+</span></span></code></pre></td></tr></table></div></div><p>查看版本：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale version
+</span></span></code></pre></td></tr></table></div></div><p>创建一个用户：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale users create homelab
+</span></span></code></pre></td></tr></table></div></div><p>生成一次性预授权 Key，给 Linux 服务器批量接入很方便：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale preauthkeys create <span class=se>\
+</span></span></span><span class=line><span class=cl>  --user homelab <span class=se>\
+</span></span></span><span class=line><span class=cl>  --expiration 24h <span class=se>\
+</span></span></span><span class=line><span class=cl>  --reusable<span class=o>=</span><span class=nb>false</span>
+</span></span></code></pre></td></tr></table></div></div><p>会输出类似：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>4c3f0d8a0bxxxxxxxxxxxxxxxxxxxxxxxx
+</span></span></code></pre></td></tr></table></div></div><p>这个 key 只用于注册设备，不要写进公开仓库。</p><hr><h2 id=6-客户端接入>6. 客户端接入</h2><h3 id=61-linux-节点>6.1 Linux 节点</h3><p>在 PVE、NAS、Docker 主机或普通 Linux 服务器上安装 Tailscale 客户端：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -fsSL https://tailscale.com/install.sh <span class=p>|</span> sh
+</span></span></code></pre></td></tr></table></div></div><p>使用 Headscale 登录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo tailscale up <span class=se>\
+</span></span></span><span class=line><span class=cl>  --login-server<span class=o>=</span>https://hs.example.com <span class=se>\
+</span></span></span><span class=line><span class=cl>  --authkey<span class=o>=</span>你的预授权KEY <span class=se>\
+</span></span></span><span class=line><span class=cl>  --hostname<span class=o>=</span>pve1
+</span></span></code></pre></td></tr></table></div></div><p>查看状态：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>tailscale status
+</span></span><span class=line><span class=cl>tailscale ip -4
+</span></span></code></pre></td></tr></table></div></div><p>回到 Headscale 服务端查看节点：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale nodes list
+</span></span></code></pre></td></tr></table></div></div><h3 id=62-windowsmacos手机>6.2 Windows/macOS/手机</h3><p>桌面和移动端仍然安装官方 Tailscale 客户端，但登录方式略有不同：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>tailscale up --login-server<span class=o>=</span>https://hs.example.com
+</span></span></code></pre></td></tr></table></div></div><p>客户端会打开浏览器，提示你到 Headscale 注册。服务端日志或命令行会看到注册命令，执行后即可加入。例如：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale nodes register <span class=se>\
+</span></span></span><span class=line><span class=cl>  --user homelab <span class=se>\
+</span></span></span><span class=line><span class=cl>  --key nodekey:xxxxxxxxxxxxxxxx
+</span></span></code></pre></td></tr></table></div></div><p>如果移动端 App 不方便指定 login server，可以先用桌面端验证链路，再考虑使用 Headscale 文档中对应平台的配置方式。生产环境建议优先把长期在线的服务器通过 <code>authkey</code> 接入，个人终端再手动注册。</p><hr><h2 id=7-配置-subnet-router带出整个内网>7. 配置 Subnet Router：带出整个内网</h2><p>假设家里主 LAN 是 <code>192.168.10.0/24</code>，PVE 节点 <code>pve1</code> 同时接入了 Headscale 和家庭内网。我们让 <code>pve1</code> 做 Subnet Router：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo tailscale up <span class=se>\
+</span></span></span><span class=line><span class=cl>  --login-server<span class=o>=</span>https://hs.example.com <span class=se>\
+</span></span></span><span class=line><span class=cl>  --advertise-routes<span class=o>=</span>192.168.10.0/24 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --accept-dns<span class=o>=</span><span class=nb>false</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --hostname<span class=o>=</span>pve1-router
+</span></span></code></pre></td></tr></table></div></div><p>打开 Linux 转发：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat <span class=s>&lt;&lt;&#39;EOF&#39; | sudo tee /etc/sysctl.d/99-tailscale-router.conf
+</span></span></span><span class=line><span class=cl><span class=s>net.ipv4.ip_forward = 1
+</span></span></span><span class=line><span class=cl><span class=s>net.ipv6.conf.all.forwarding = 1
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>sudo sysctl --system
+</span></span></code></pre></td></tr></table></div></div><p>在 Headscale 服务端查看待批准路由：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale nodes list
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale routes list
+</span></span></code></pre></td></tr></table></div></div><p>启用对应路由。不同版本命令输出略有差异，核心是找到 route ID 后 enable：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale routes <span class=nb>enable</span> -r &lt;ROUTE_ID&gt;
+</span></span></code></pre></td></tr></table></div></div><p>其他客户端需要接受路由：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo tailscale <span class=nb>set</span> --accept-routes<span class=o>=</span><span class=nb>true</span>
+</span></span></code></pre></td></tr></table></div></div><p>验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在外部笔记本上测试访问内网 PVE 或 NAS</span>
+</span></span><span class=line><span class=cl>ping 192.168.10.2
+</span></span><span class=line><span class=cl>curl -k https://192.168.10.2:8006
+</span></span></code></pre></td></tr></table></div></div><p>如果 ping 不通，按这个顺序查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 客户端是否拿到了路由</span>
+</span></span><span class=line><span class=cl>tailscale status
+</span></span><span class=line><span class=cl>tailscale netcheck
+</span></span><span class=line><span class=cl>ip route <span class=p>|</span> grep 192.168.10
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. Subnet Router 是否开启转发</span>
+</span></span><span class=line><span class=cl>sysctl net.ipv4.ip_forward
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. Headscale 是否启用了路由</span>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale routes list
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 4. 内网目标机器的默认网关/防火墙是否允许来自 100.64.0.0/10 的访问</span>
+</span></span><span class=line><span class=cl>sudo iptables -S
+</span></span><span class=line><span class=cl>sudo nft list ruleset
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>实战经验：很多「Subnet Router 不通」不是 Headscale 的锅，而是内网目标机器的防火墙拒绝了 <code>100.64.0.0/10</code>，或者路由器不知道如何回包。Tailscale 默认会在 Subnet Router 上做 SNAT，通常能避免回程路由问题；如果你禁用了 SNAT，就必须在家庭网关上加静态路由。</p></blockquote><hr><h2 id=8-acl不要让所有设备访问所有端口>8. ACL：不要让所有设备访问所有端口</h2><p>默认全放通很方便，但不适合长期使用。下面是一份适合 Homelab 的 <code>acl.hujson</code> 示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-json data-lang=json><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=nt>&#34;groups&#34;</span><span class=p>:</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nt>&#34;group:admins&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;homelab&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>  <span class=p>},</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=nt>&#34;tagOwners&#34;</span><span class=p>:</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nt>&#34;tag:server&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;group:admins&#34;</span><span class=p>],</span>
+</span></span><span class=line><span class=cl>    <span class=nt>&#34;tag:router&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;group:admins&#34;</span><span class=p>],</span>
+</span></span><span class=line><span class=cl>    <span class=nt>&#34;tag:mobile&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;group:admins&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>  <span class=p>},</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=nt>&#34;acls&#34;</span><span class=p>:</span> <span class=p>[</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// 管理员设备可以访问所有 Tailnet 节点
+</span></span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;action&#34;</span><span class=p>:</span> <span class=s2>&#34;accept&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;src&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;group:admins&#34;</span><span class=p>],</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;dst&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;*:*&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>    <span class=p>},</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// 普通移动设备只允许访问内网 Web 服务和 SSH 跳板
+</span></span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;action&#34;</span><span class=p>:</span> <span class=s2>&#34;accept&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;src&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;tag:mobile&#34;</span><span class=p>],</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;dst&#34;</span><span class=p>:</span> <span class=p>[</span>
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;192.168.10.0/24:80,443,8006,8123,9000&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;tag:server:22&#34;</span>
+</span></span><span class=line><span class=cl>      <span class=p>]</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=p>],</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=nt>&#34;ssh&#34;</span><span class=p>:</span> <span class=p>[</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;action&#34;</span><span class=p>:</span> <span class=s2>&#34;accept&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;src&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;group:admins&#34;</span><span class=p>],</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;dst&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;tag:server&#34;</span><span class=p>],</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;users&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;root&#34;</span><span class=p>,</span> <span class=s2>&#34;ubuntu&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=p>],</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=nt>&#34;autoApprovers&#34;</span><span class=p>:</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nt>&#34;routes&#34;</span><span class=p>:</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;192.168.10.0/24&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;tag:router&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>保存到 <code>/opt/headscale/config/acl.hujson</code> 后重启：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose restart headscale
+</span></span><span class=line><span class=cl>docker logs --tail<span class=o>=</span><span class=m>100</span> headscale
+</span></span></code></pre></td></tr></table></div></div><p>给节点打标签通常在注册或重新登录时指定，例如：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo tailscale up <span class=se>\
+</span></span></span><span class=line><span class=cl>  --login-server<span class=o>=</span>https://hs.example.com <span class=se>\
+</span></span></span><span class=line><span class=cl>  --advertise-tags<span class=o>=</span>tag:server <span class=se>\
+</span></span></span><span class=line><span class=cl>  --hostname<span class=o>=</span>docker01
+</span></span></code></pre></td></tr></table></div></div><p>ACL 的维护建议：</p><div class=table-wrapper><table><thead><tr><th>策略</th><th>建议</th></tr></thead><tbody><tr><td>管理员设备</td><td>可以全访问，但设备数量越少越好</td></tr><tr><td>手机/平板</td><td>只放行 Web 服务端口，不给 SSH</td></tr><tr><td>Subnet Router</td><td>单独打 <code>tag:router</code>，配合 <code>autoApprovers</code></td></tr><tr><td>临时设备</td><td>用短过期 <code>preauthkey</code>，不用后删除节点</td></tr></tbody></table></div><hr><h2 id=9-magicdns用名字访问-homelab-服务>9. MagicDNS：用名字访问 Homelab 服务</h2><p>开启 <code>magic_dns</code> 后，Tailnet 内可以通过节点名访问设备，例如：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ssh root@pve1
+</span></span><span class=line><span class=cl>curl http://docker01:9000
+</span></span></code></pre></td></tr></table></div></div><p>如果想给某些内网服务配置固定记录，可以使用 <code>extra_records</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>dns</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>magic_dns</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>base_domain</span><span class=p>:</span><span class=w> </span><span class=l>tailnet.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>nameservers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>global</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=m>223.5.5.5</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>extra_records</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>pve.tailnet.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>A</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>value</span><span class=p>:</span><span class=w> </span><span class=m>192.168.10.2</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nas.tailnet.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>A</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>value</span><span class=p>:</span><span class=w> </span><span class=m>192.168.10.10</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>但我更推荐两种方式：</p><ol><li><strong>节点用 MagicDNS 名称</strong>，比如 <code>pve1</code>、<code>docker01</code>；</li><li><strong>业务服务继续走内网反代域名</strong>，比如 <code>https://grafana.home.example.com</code>，DNS 指向内网反代 IP，再由 Subnet Router 打通访问。</li></ol><p>这样不会把 Headscale 的 DNS 配置写得过重，后续迁移也简单。</p><hr><h2 id=10-备份升级与迁移>10. 备份、升级与迁移</h2><p>Headscale 的关键数据都在 <code>/opt/headscale/data</code> 和 <code>/opt/headscale/config</code>。最小备份脚本如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/usr/bin/env bash
+</span></span></span><span class=line><span class=cl><span class=nb>set</span> -euo pipefail
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nv>BACKUP_DIR</span><span class=o>=</span><span class=s2>&#34;/backup/headscale&#34;</span>
+</span></span><span class=line><span class=cl><span class=nv>TS</span><span class=o>=</span><span class=s2>&#34;</span><span class=k>$(</span>date +%Y%m%d-%H%M%S<span class=k>)</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl>mkdir -p <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /opt
+</span></span><span class=line><span class=cl>tar -czf <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>/headscale-</span><span class=nv>$TS</span><span class=s2>.tar.gz&#34;</span> headscale/config headscale/data
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 保留最近 14 份</span>
+</span></span><span class=line><span class=cl>ls -1t <span class=s2>&#34;</span><span class=nv>$BACKUP_DIR</span><span class=s2>&#34;</span>/headscale-*.tar.gz <span class=p>|</span> tail -n +15 <span class=p>|</span> xargs -r rm -f
+</span></span></code></pre></td></tr></table></div></div><p>配合 crontab：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo crontab -e
+</span></span></code></pre></td></tr></table></div></div><p>写入：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=mi>15</span> <span class=mi>3</span> <span class=o>*</span> <span class=o>*</span> <span class=o>*</span> <span class=o>/</span><span class=n>usr</span><span class=o>/</span><span class=n>local</span><span class=o>/</span><span class=n>sbin</span><span class=o>/</span><span class=n>backup</span><span class=o>-</span><span class=n>headscale</span><span class=o>.</span><span class=n>sh</span> <span class=o>&gt;/</span><span class=k>var</span><span class=o>/</span><span class=nb>log</span><span class=o>/</span><span class=n>backup</span><span class=o>-</span><span class=n>headscale</span><span class=o>.</span><span class=n>log</span> <span class=mi>2</span><span class=o>&gt;&amp;</span><span class=mi>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>升级前先备份，再拉镜像：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> /opt/headscale
+</span></span><span class=line><span class=cl>./backup-headscale.sh
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker compose pull
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker logs --tail<span class=o>=</span><span class=m>100</span> headscale
+</span></span></code></pre></td></tr></table></div></div><p>迁移到新机器时：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 新机器</span>
+</span></span><span class=line><span class=cl>sudo mkdir -p /opt/headscale
+</span></span><span class=line><span class=cl>sudo tar -xzf headscale-20260601-030000.tar.gz -C /opt
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /opt/headscale
+</span></span><span class=line><span class=cl>docker compose up -d
+</span></span></code></pre></td></tr></table></div></div><p>迁移后要确认：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale users list
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> headscale headscale nodes list
+</span></span><span class=line><span class=cl>curl -I https://hs.example.com/health
+</span></span></code></pre></td></tr></table></div></div><p>只要域名、数据库和私钥没变，客户端通常不需要重新注册。</p><hr><h2 id=11-常见踩坑记录>11. 常见踩坑记录</h2><h3 id=-1-server_url-写成了-http1270018080>❌ 1. <code>server_url</code> 写成了 <code>http://127.0.0.1:8080</code></h3><p>客户端注册时会拿这个地址作为控制面入口。如果写成本机地址，只有容器自己能访问，外部客户端全部失败。必须写公网可访问的 HTTPS 地址：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>server_url</span><span class=p>:</span><span class=w> </span><span class=l>https://hs.example.com</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=-2-反代正常但客户端一直连不上>❌ 2. 反代正常，但客户端一直连不上</h3><p>先看基础健康检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -v https://hs.example.com/health
+</span></span><span class=line><span class=cl>docker logs --tail<span class=o>=</span><span class=m>200</span> headscale
+</span></span></code></pre></td></tr></table></div></div><p>再检查 Caddy 是否把请求转发到 Headscale：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo journalctl -u caddy -n <span class=m>100</span> --no-pager
+</span></span><span class=line><span class=cl>ss -lntp <span class=p>|</span> grep <span class=m>8080</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果 <code>8080</code> 没监听，多半是容器没起来或配置文件解析失败。</p><h3 id=-3-subnet-router-已批准但访问内网服务超时>❌ 3. Subnet Router 已批准，但访问内网服务超时</h3><p>重点查三件事：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 客户端是否接受路由</span>
+</span></span><span class=line><span class=cl>sudo tailscale <span class=nb>set</span> --accept-routes<span class=o>=</span><span class=nb>true</span>
+</span></span><span class=line><span class=cl>ip route <span class=p>|</span> grep 192.168.10
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Router 是否开启转发</span>
+</span></span><span class=line><span class=cl>sysctl net.ipv4.ip_forward
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 目标服务是否只监听 localhost</span>
+</span></span><span class=line><span class=cl>ss -lntp <span class=p>|</span> grep <span class=s1>&#39;:8006\|:8123\|:443&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>有些服务只绑定 <code>127.0.0.1</code>，你从 VPN 当然访问不到。需要改成监听 <code>0.0.0.0</code> 或内网 IP。</p><h3 id=-4-docker-网段和家里-lan-冲突>❌ 4. Docker 网段和家里 LAN 冲突</h3><p>如果 Docker 默认 <code>172.17.0.0/16</code>、K8s Pod CIDR、家里路由器网段、Tailnet 路由互相重叠，排障会非常痛苦。建议统一规划：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>家庭 LAN:        192.168.10.0/24
+</span></span><span class=line><span class=cl>服务器 VLAN:     192.168.20.0/24
+</span></span><span class=line><span class=cl>Docker Compose:  172.20.0.0/16
+</span></span><span class=line><span class=cl>K8s Pod CIDR:    10.42.0.0/16
+</span></span><span class=line><span class=cl>K8s SVC CIDR:    10.43.0.0/16
+</span></span><span class=line><span class=cl>Tailnet:         100.64.0.0/10
+</span></span></code></pre></td></tr></table></div></div><p>Docker 默认地址池可以在 <code>/etc/docker/daemon.json</code> 中调整：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-json data-lang=json><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=nt>&#34;default-address-pools&#34;</span><span class=p>:</span> <span class=p>[</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;base&#34;</span><span class=p>:</span> <span class=s2>&#34;172.20.0.0/14&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;size&#34;</span><span class=p>:</span> <span class=mi>24</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=p>]</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>重启 Docker：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo systemctl restart docker
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=12-安全加固清单>12. 安全加固清单</h2><div class=table-wrapper><table><thead><tr><th>项目</th><th>命令/配置</th><th>建议</th></tr></thead><tbody><tr><td>公网端口</td><td><code>ss -lntp</code>、云防火墙</td><td>只开放 80/443/SSH</td></tr><tr><td>Headscale 端口</td><td>Compose 绑定 <code>127.0.0.1:8080</code></td><td>不直接暴露公网</td></tr><tr><td>预授权 Key</td><td><code>--expiration 24h --reusable=false</code></td><td>临时使用，过期失效</td></tr><tr><td>ACL</td><td><code>policy.path</code></td><td>默认拒绝，按需放行</td></tr><tr><td>备份</td><td>tar config + data</td><td>至少每日一次</td></tr><tr><td>日志</td><td><code>docker logs headscale</code></td><td>注册失败先看日志</td></tr><tr><td>升级</td><td>固定镜像 tag</td><td>不建议长期用 <code>latest</code></td></tr></tbody></table></div><p>如果你还把 Headscale 暴露在公网 VPS 上，SSH 也要做基础加固：禁用密码登录、改用密钥、限制 sudo 用户，并配合防火墙只放行必要端口。</p><hr><h2 id=总结headscale-适合谁>总结：Headscale 适合谁？</h2><p>Headscale 不是 WireGuard 的替代品，而是把 WireGuard 的设备管理、NAT 穿透、ACL 和 DNS 做成了一个自托管控制面。对于 Homelab，它最有价值的地方是：<strong>不用把 PVE、NAS、Home Assistant、Grafana 全部暴露到公网，只需要维护一个 HTTPS 控制面，就能在外面安全访问内网资源</strong>。</p><p>我的建议：</p><div class=table-wrapper><table><thead><tr><th>场景</th><th>推荐方案</th></tr></thead><tbody><tr><td>只有 1-2 台设备远程访问</td><td>WireGuard 更简单</td></tr><tr><td>多设备、多系统、经常换网络</td><td>Headscale 更省心 🏆</td></tr><tr><td>需要访问整个家庭网段</td><td>Headscale + Subnet Router</td></tr><tr><td>多用户权限隔离</td><td>Headscale + ACL</td></tr><tr><td>极致可控和审计</td><td>自建 Headscale + 自建 DERP</td></tr></tbody></table></div><p>最后一句话：先把 Headscale 控制面跑稳，再逐步加 Subnet Router、ACL 和 DNS。不要一上来就把所有内网网段全放通，否则你只是把「内网裸奔」换成了「VPN 裸奔」。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

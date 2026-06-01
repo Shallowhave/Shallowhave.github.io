@@ -1,0 +1,616 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="用 Authelia、Caddy Forward Auth、PostgreSQL 和 Redis 给 Homelab 内网服务加统一登录、访问控制与二次验证，包含 Docker Compose、Caddyfile、ACL 规则、排障命令和踩坑记录。"><title>Homelab 入口别只靠弱密码：Authelia + Caddy 给内网服务加统一认证</title><link rel=canonical href=https://shallowhave.github.io/p/authelia-caddy-forward-auth-homelab/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Homelab 入口别只靠弱密码：Authelia + Caddy 给内网服务加统一认证"><meta property='og:description' content="用 Authelia、Caddy Forward Auth、PostgreSQL 和 Redis 给 Homelab 内网服务加统一登录、访问控制与二次验证，包含 Docker Compose、Caddyfile、ACL 规则、排障命令和踩坑记录。"><meta property='og:url' content='https://shallowhave.github.io/p/authelia-caddy-forward-auth-homelab/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-26T01:22:38+08:00'><meta property='article:modified_time' content='2026-05-26T01:22:38+08:00'><meta name=twitter:title content="Homelab 入口别只靠弱密码：Authelia + Caddy 给内网服务加统一认证"><meta name=twitter:description content="用 Authelia、Caddy Forward Auth、PostgreSQL 和 Redis 给 Homelab 内网服务加统一登录、访问控制与二次验证，包含 Docker Compose、Caddyfile、ACL 规则、排障命令和踩坑记录。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-架构设计>1. 架构设计</a></li><li><a href=#2-准备目录和密钥>2. 准备目录和密钥</a></li><li><a href=#3-docker-compose-部署-authelia>3. Docker Compose 部署 Authelia</a></li><li><a href=#4-authelia-主配置>4. Authelia 主配置</a></li><li><a href=#5-创建用户数据库>5. 创建用户数据库</a></li><li><a href=#6-caddyfile认证门户--受保护服务>6. Caddyfile：认证门户 + 受保护服务</a></li><li><a href=#7-分组-acl不要所有人都是管理员>7. 分组 ACL：不要所有人都是管理员</a></li><li><a href=#8-让后端服务识别用户>8. 让后端服务识别用户</a></li><li><a href=#9-排障命令>9. 排障命令</a><ol><li><a href=#91-看-authelia-是否正常启动>9.1 看 Authelia 是否正常启动</a></li><li><a href=#92-看-caddy-是否调用了-forward_auth>9.2 看 Caddy 是否调用了 forward_auth</a></li><li><a href=#93-验证-http-状态>9.3 验证 HTTP 状态</a></li><li><a href=#94-检查时间同步>9.4 检查时间同步</a></li></ol></li><li><a href=#10-踩坑记录>10. 踩坑记录</a><ol><li><a href=#-1-sessioncookiesdomain-写成-authexamplecom>❌ 1. <code>session.cookies.domain</code> 写成 <code>auth.example.com</code></a></li><li><a href=#-2-caddy-在容器里却写-1270019091>❌ 2. Caddy 在容器里却写 <code>127.0.0.1:9091</code></a></li><li><a href=#-3-后端端口仍然暴露在局域网>❌ 3. 后端端口仍然暴露在局域网</a></li><li><a href=#-4-默认策略用-one_factor-或-bypass>❌ 4. 默认策略用 <code>one_factor</code> 或 <code>bypass</code></a></li><li><a href=#-5-保护会回调自己的服务>❌ 5. 保护会回调自己的服务</a></li></ol></li><li><a href=#11-备份与恢复>11. 备份与恢复</a></li><li><a href=#12-安全加固建议>12. 安全加固建议</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/authelia-caddy-forward-auth-homelab/>Homelab 入口别只靠弱密码：Authelia + Caddy 给内网服务加统一认证</a></h2><h3 class=article-subtitle>用 Authelia、Caddy Forward Auth、PostgreSQL 和 Redis 给 Homelab 内网服务加统一登录、访问控制与二次验证，包含 Docker Compose、Caddyfile、ACL 规则、排障命令和踩坑记录。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 26, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 9 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>Homelab 服务越跑越多以后，真正危险的不是某一个服务本身，而是<strong>入口失控</strong>：Grafana 一个默认账号、qBittorrent 一个弱口令、NAS 面板一个旧版本、某个临时测试服务忘了下线。反向代理和 HTTPS 只能解决「怎么访问」和「传输是否加密」，不能解决「谁能访问」。</p><p>本文搭一套适合家庭实验室的统一认证入口：<strong>Caddy + Authelia Forward Auth</strong>。</p><p>目标很明确：</p><ul><li>Caddy 继续负责 HTTPS、反向代理和路由；</li><li>Authelia 负责登录、Cookie Session、访问控制和 TOTP 二次验证；</li><li>PostgreSQL 保存 Authelia 状态数据；</li><li>Redis 保存会话，后续扩展多实例也更平滑；</li><li>对没有登录功能或登录很弱的内网服务，加一层统一身份认证。</li></ul><blockquote><p>注意：本文示例以 <code>example.com</code>、<code>auth.example.com</code>、<code>grafana.example.com</code> 作为占位域名。请替换成你自己的内网域名或公网域名。Authelia 可以保护入口，但不要把 PVE、NAS、路由器管理口无脑暴露到公网。</p></blockquote><h2 id=1-架构设计>1. 架构设计</h2><p>整体流量链路如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Browser
+</span></span><span class=line><span class=cl>  │
+</span></span><span class=line><span class=cl>  ▼
+</span></span><span class=line><span class=cl>Caddy :443
+</span></span><span class=line><span class=cl>  │
+</span></span><span class=line><span class=cl>  ├── auth.example.com    ──► Authelia :9091
+</span></span><span class=line><span class=cl>  │
+</span></span><span class=line><span class=cl>  └── grafana.example.com ──► forward_auth 到 Authelia 校验
+</span></span><span class=line><span class=cl>                              │
+</span></span><span class=line><span class=cl>                              └── 校验通过后 reverse_proxy 到 Grafana :3000
+</span></span></code></pre></td></tr></table></div></div><p>Forward Auth 的核心逻辑是：用户访问受保护服务时，Caddy 先把请求交给 Authelia 的 <code>/api/authz/forward-auth</code> 端点判断。Authelia 如果认为用户没有登录，就返回重定向到登录门户；如果已登录且 ACL 允许访问，就返回 <code>2xx</code>，Caddy 再把原始请求转发给后端服务。</p><p>组件建议如下：</p><div class=table-wrapper><table><thead><tr><th>组件</th><th>作用</th><th>Homelab 建议</th></tr></thead><tbody><tr><td>Caddy</td><td>HTTPS、反向代理、Forward Auth</td><td>复用已有 Caddy 入口</td></tr><tr><td>Authelia</td><td>认证门户、ACL、TOTP</td><td>独立 Compose 栈，监听内网</td></tr><tr><td>PostgreSQL</td><td>持久化 Authelia 数据</td><td>比 SQLite 更适合长期使用</td></tr><tr><td>Redis</td><td>Session 存储</td><td>单实例即可，别暴露端口</td></tr><tr><td>Protected Apps</td><td>Grafana、Prometheus、qBittorrent 等</td><td>优先保护无认证或弱认证服务</td></tr></tbody></table></div><h2 id=2-准备目录和密钥>2. 准备目录和密钥</h2><p>先创建目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p ~/authelia/<span class=o>{</span>config,secrets,postgres,redis<span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> ~/authelia
+</span></span></code></pre></td></tr></table></div></div><p>生成几组密钥。Authelia 里最容易出问题的就是 secret 混用、太短或换了之后导致会话失效，所以单独保存到文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>openssl rand -hex <span class=m>64</span> &gt; secrets/JWT_SECRET
+</span></span><span class=line><span class=cl>openssl rand -hex <span class=m>64</span> &gt; secrets/SESSION_SECRET
+</span></span><span class=line><span class=cl>openssl rand -hex <span class=m>64</span> &gt; secrets/STORAGE_ENCRYPTION_KEY
+</span></span><span class=line><span class=cl>openssl rand -base64 <span class=m>36</span> &gt; secrets/POSTGRES_PASSWORD
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>chmod <span class=m>600</span> secrets/*
+</span></span></code></pre></td></tr></table></div></div><p>如果你用 Git 管理 Compose 配置，<code>secrets/</code> 和数据库目录必须加入 <code>.gitignore</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt; .gitignore <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>secrets/
+</span></span></span><span class=line><span class=cl><span class=s>postgres/
+</span></span></span><span class=line><span class=cl><span class=s>redis/
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=3-docker-compose-部署-authelia>3. Docker Compose 部署 Authelia</h2><p>创建 <code>docker-compose.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span><span class=lnt>54
+</span><span class=lnt>55
+</span><span class=lnt>56
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>authelia</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>authelia/authelia:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>authelia</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>depends_on</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>postgres</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>redis</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./config:/config</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./secrets:/secrets:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>TZ</span><span class=p>:</span><span class=w> </span><span class=l>Asia/Shanghai</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>AUTHELIA_JWT_SECRET_FILE</span><span class=p>:</span><span class=w> </span><span class=l>/secrets/JWT_SECRET</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>AUTHELIA_SESSION_SECRET_FILE</span><span class=p>:</span><span class=w> </span><span class=l>/secrets/SESSION_SECRET</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE</span><span class=p>:</span><span class=w> </span><span class=l>/secrets/STORAGE_ENCRYPTION_KEY</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE</span><span class=p>:</span><span class=w> </span><span class=l>/secrets/POSTGRES_PASSWORD</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=c># 只给内网 Caddy 访问。若 Caddy 与 Authelia 在同一 Docker 网络，可删除 ports。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;127.0.0.1:9091:9091&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>auth</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>postgres</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>postgres:16-alpine</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>authelia-postgres</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>POSTGRES_USER</span><span class=p>:</span><span class=w> </span><span class=l>authelia</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>POSTGRES_DB</span><span class=p>:</span><span class=w> </span><span class=l>authelia</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>POSTGRES_PASSWORD_FILE</span><span class=p>:</span><span class=w> </span><span class=l>/run/secrets/postgres_password</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>TZ</span><span class=p>:</span><span class=w> </span><span class=l>Asia/Shanghai</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>secrets</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>postgres_password</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./postgres:/var/lib/postgresql/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>auth</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>redis</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>redis:7-alpine</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>authelia-redis</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w> </span><span class=l>redis-server --save 60 1 --loglevel warning</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./redis:/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>auth</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>secrets</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>postgres_password</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>file</span><span class=p>:</span><span class=w> </span><span class=l>./secrets/POSTGRES_PASSWORD</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>auth</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>authelia</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这里把 Authelia 绑定到 <code>127.0.0.1:9091</code>，原因是 Caddy 和 Authelia 如果在同一台机器，没必要把认证端口暴露到局域网。Caddy 在宿主机运行时访问 <code>http://127.0.0.1:9091</code>；如果 Caddy 也在 Docker 里，可以把二者放到同一个 Docker network 后直接访问 <code>http://authelia:9091</code>。</p><h2 id=4-authelia-主配置>4. Authelia 主配置</h2><p>创建 <code>config/configuration.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span><span class=lnt>54
+</span><span class=lnt>55
+</span><span class=lnt>56
+</span><span class=lnt>57
+</span><span class=lnt>58
+</span><span class=lnt>59
+</span><span class=lnt>60
+</span><span class=lnt>61
+</span><span class=lnt>62
+</span><span class=lnt>63
+</span><span class=lnt>64
+</span><span class=lnt>65
+</span><span class=lnt>66
+</span><span class=lnt>67
+</span><span class=lnt>68
+</span><span class=lnt>69
+</span><span class=lnt>70
+</span><span class=lnt>71
+</span><span class=lnt>72
+</span><span class=lnt>73
+</span><span class=lnt>74
+</span><span class=lnt>75
+</span><span class=lnt>76
+</span><span class=lnt>77
+</span><span class=lnt>78
+</span><span class=lnt>79
+</span><span class=lnt>80
+</span><span class=lnt>81
+</span><span class=lnt>82
+</span><span class=lnt>83
+</span><span class=lnt>84
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>server</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>address</span><span class=p>:</span><span class=w> </span><span class=l>tcp://0.0.0.0:9091</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>endpoints</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>authz</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>forward-auth</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>implementation</span><span class=p>:</span><span class=w> </span><span class=l>ForwardAuth</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>log</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>level</span><span class=p>:</span><span class=w> </span><span class=l>info</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>totp</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>issuer</span><span class=p>:</span><span class=w> </span><span class=l>example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>authentication_backend</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>file</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=l>/config/users_database.yml</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>watch</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>password_policy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>standard</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>enabled</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>min_length</span><span class=p>:</span><span class=w> </span><span class=m>12</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>require_uppercase</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>require_lowercase</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>require_number</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>require_special</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>access_control</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>default_policy</span><span class=p>:</span><span class=w> </span><span class=l>deny</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>local_lan</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=m>192.168.1.0</span><span class=l>/24</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=m>10.0.0.0</span><span class=l>/8</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=m>172.16.0.0</span><span class=l>/12</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>rules</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># Authelia 门户本身不需要再套自己</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w> </span><span class=l>auth.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>bypass</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 只允许内网访问的服务，例如 PVE、NAS、路由器跳板页</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>pve.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>nas.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>local_lan</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>two_factor</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 普通管理服务：登录 + TOTP</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>grafana.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>prometheus.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>qbittorrent.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>two_factor</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 只读类服务可以降级为一因子，按需调整</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>status.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>one_factor</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>session</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>cookies</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w> </span><span class=l>example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>authelia_url</span><span class=p>:</span><span class=w> </span><span class=l>https://auth.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>default_redirection_url</span><span class=p>:</span><span class=w> </span><span class=l>https://grafana.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>authelia_session</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>same_site</span><span class=p>:</span><span class=w> </span><span class=l>lax</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>inactivity</span><span class=p>:</span><span class=w> </span><span class=l>30m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>expiration</span><span class=p>:</span><span class=w> </span><span class=l>8h</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>remember_me</span><span class=p>:</span><span class=w> </span><span class=l>1M</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>redis</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>host</span><span class=p>:</span><span class=w> </span><span class=l>redis</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>6379</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>storage</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>postgres</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>address</span><span class=p>:</span><span class=w> </span><span class=l>tcp://postgres:5432</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>database</span><span class=p>:</span><span class=w> </span><span class=l>authelia</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>username</span><span class=p>:</span><span class=w> </span><span class=l>authelia</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>notifier</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>filesystem</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>filename</span><span class=p>:</span><span class=w> </span><span class=l>/config/notification.txt</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>几个关键点：</p><ol><li><code>default_policy: deny</code>：默认拒绝，靠规则显式放行。这比默认允许安全很多。</li><li><code>session.cookies.domain</code> 必须是顶级共享域，例如 <code>example.com</code>，不要写成 <code>auth.example.com</code>，否则其他子域拿不到会话。</li><li><code>authelia_url</code> 是用户未登录时跳转的认证门户地址，必须是浏览器可访问的 HTTPS 地址。</li><li><code>notifier.filesystem</code> 适合 Homelab 初期调试，注册 TOTP、重置密码等通知会写到文件里；正式使用可以换 SMTP。</li></ol><h2 id=5-创建用户数据库>5. 创建用户数据库</h2><p>先生成密码哈希。不要把明文密码写进配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run --rm authelia/authelia:latest <span class=se>\
+</span></span></span><span class=line><span class=cl>  authelia crypto <span class=nb>hash</span> generate argon2 <span class=se>\
+</span></span></span><span class=line><span class=cl>  --password <span class=s1>&#39;请换成你的强密码&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>输出会类似：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Digest: $argon2id$v=19$m=65536,t=3,p=4$......
+</span></span></code></pre></td></tr></table></div></div><p>创建 <code>config/users_database.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>users</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>admin</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>displayname</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Homelab Admin&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>password</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;$argon2id$v=19$m=65536,t=3,p=4$请替换成上一步生成的哈希&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>email</span><span class=p>:</span><span class=w> </span><span class=l>admin@example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>groups</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>admins</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>homelab</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>guest</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>displayname</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Guest&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>password</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;$argon2id$v=19$m=65536,t=3,p=4$另一个哈希&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>email</span><span class=p>:</span><span class=w> </span><span class=l>guest@example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>groups</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>guests</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>启动服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker compose ps
+</span></span><span class=line><span class=cl>docker logs -f authelia
+</span></span></code></pre></td></tr></table></div></div><p>如果日志里看到数据库迁移完成、服务监听 <code>:9091</code>，说明 Authelia 侧基本正常。再用本机 curl 验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -I http://127.0.0.1:9091/
+</span></span></code></pre></td></tr></table></div></div><p>正常会返回 <code>200</code> 或重定向相关响应，至少不能是连接失败。</p><h2 id=6-caddyfile认证门户--受保护服务>6. Caddyfile：认证门户 + 受保护服务</h2><p>下面是 Caddyfile 示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>email</span> <span class=s>admin@example.com</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=gh>auth.example.com</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>127.0.0.1</span><span class=p>:</span><span class=mi>9091</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=gh>grafana.example.com</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>forward_auth</span> <span class=n>127.0.0.1</span><span class=p>:</span><span class=mi>9091</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>uri</span> <span class=nd>/api/authz/forward-auth</span>
+</span></span><span class=line><span class=cl>        <span class=k>copy_headers</span> <span class=s>Remote-User</span> <span class=s>Remote-Groups</span> <span class=s>Remote-Email</span> <span class=s>Remote-Name</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>192.168.1.20</span><span class=p>:</span><span class=mi>3000</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=gh>prometheus.example.com</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>forward_auth</span> <span class=n>127.0.0.1</span><span class=p>:</span><span class=mi>9091</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>uri</span> <span class=nd>/api/authz/forward-auth</span>
+</span></span><span class=line><span class=cl>        <span class=k>copy_headers</span> <span class=s>Remote-User</span> <span class=s>Remote-Groups</span> <span class=s>Remote-Email</span> <span class=s>Remote-Name</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>192.168.1.20</span><span class=p>:</span><span class=mi>9090</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>重载 Caddy：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo caddy validate --config /etc/caddy/Caddyfile
+</span></span><span class=line><span class=cl>sudo systemctl reload caddy
+</span></span><span class=line><span class=cl>sudo journalctl -u caddy -f
+</span></span></code></pre></td></tr></table></div></div><p>如果 Caddy 也跑在 Docker 里，<code>127.0.0.1:9091</code> 指的是 Caddy 容器自己，不是宿主机。这种情况下要把 Caddy 加入 <code>authelia</code> 网络，然后改成：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>grafana.example.com</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>forward_auth</span> <span class=n>authelia</span><span class=p>:</span><span class=mi>9091</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>uri</span> <span class=nd>/api/authz/forward-auth</span>
+</span></span><span class=line><span class=cl>        <span class=k>copy_headers</span> <span class=s>Remote-User</span> <span class=s>Remote-Groups</span> <span class=s>Remote-Email</span> <span class=s>Remote-Name</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>grafana</span><span class=p>:</span><span class=mi>3000</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>对应 Compose 片段：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>caddy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>caddy:2</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>authelia</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>proxy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>authelia</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>external</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>proxy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>external</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=7-分组-acl不要所有人都是管理员>7. 分组 ACL：不要所有人都是管理员</h2><p>只有一个管理员账号时，规则可以简单；但一旦你想给家人开放相册、给访客开放状态页，就应该用 group 分层。</p><p>示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>access_control</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>default_policy</span><span class=p>:</span><span class=w> </span><span class=l>deny</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>rules</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w> </span><span class=l>auth.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>bypass</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w> </span><span class=l>photos.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>subject</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=s2>&#34;group:family&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=s2>&#34;group:admins&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>one_factor</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w> </span><span class=l>grafana.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>subject</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=s2>&#34;group:admins&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>two_factor</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w> </span><span class=l>qbittorrent.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>subject</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=s2>&#34;user:admin&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>two_factor</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这种写法的好处是权限边界清楚：相册不等于监控，监控不等于下载器，下载器更不等于 PVE 管理入口。</p><p>修改配置后重启 Authelia：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose restart authelia
+</span></span><span class=line><span class=cl>docker logs --tail<span class=o>=</span><span class=m>100</span> authelia
+</span></span></code></pre></td></tr></table></div></div><h2 id=8-让后端服务识别用户>8. 让后端服务识别用户</h2><p>Caddy 的 <code>copy_headers</code> 会把 Authelia 返回的用户信息传给后端：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>copy_headers</span> <span class=gh>Remote-User</span> <span class=gh>Remote-Groups</span> <span class=gh>Remote-Email</span> <span class=gh>Remote-Name</span><span class=p>
+</span></span></span></code></pre></td></tr></table></div></div><p>某些应用支持「反向代理认证」或「Header Auth」，可以直接读取 <code>Remote-User</code>。例如内部工具可以按 <code>Remote-Groups</code> 做权限判断。但这里有一个安全边界：<strong>后端服务必须只允许来自 Caddy 的流量</strong>。</p><p>否则攻击者可以绕过 Caddy 直接访问后端端口，并伪造 <code>Remote-User</code> 头。</p><p>最简单的做法是不要暴露后端端口，只在 Docker 内网里互通：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>grafana</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>grafana/grafana:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>expose</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;3000&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>proxy</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>如果后端是局域网其他机器，至少用防火墙限制只允许 Caddy 服务器访问：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在后端机器上，仅允许 Caddy 服务器 192.168.1.9 访问 Grafana 3000</span>
+</span></span><span class=line><span class=cl>sudo ufw allow from 192.168.1.9 to any port <span class=m>3000</span> proto tcp
+</span></span><span class=line><span class=cl>sudo ufw deny 3000/tcp
+</span></span><span class=line><span class=cl>sudo ufw status numbered
+</span></span></code></pre></td></tr></table></div></div><h2 id=9-排障命令>9. 排障命令</h2><h3 id=91-看-authelia-是否正常启动>9.1 看 Authelia 是否正常启动</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose ps
+</span></span><span class=line><span class=cl>docker logs --tail<span class=o>=</span><span class=m>200</span> authelia
+</span></span></code></pre></td></tr></table></div></div><p>重点看这几类错误：</p><ul><li>PostgreSQL 连接失败：检查 <code>POSTGRES_PASSWORD_FILE</code> 和 <code>storage.postgres.address</code>；</li><li>Redis 连接失败：检查 <code>session.redis.host</code> 是否是 Compose 服务名；</li><li>session cookie 报错：检查 <code>session.cookies.domain</code> 和 <code>authelia_url</code>；</li><li>ACL 不生效：检查域名是否和浏览器访问域名完全一致。</li></ul><h3 id=92-看-caddy-是否调用了-forward_auth>9.2 看 Caddy 是否调用了 forward_auth</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo journalctl -u caddy -n <span class=m>100</span> --no-pager
+</span></span></code></pre></td></tr></table></div></div><p>如果访问受保护域名时完全没有 Authelia 日志，大概率是 Caddyfile 没命中当前站点块，或 DNS 指到了别的入口。</p><h3 id=93-验证-http-状态>9.3 验证 HTTP 状态</h3><p>未登录访问受保护服务，应该得到跳转：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -I https://grafana.example.com
+</span></span></code></pre></td></tr></table></div></div><p>一般会看到 <code>302</code> 或与 Authelia 登录流程相关的响应。如果直接 <code>200</code> 打开了 Grafana，说明 Forward Auth 没套上；如果是 <code>502</code>，优先检查 Caddy 到 Authelia 或 Caddy 到后端的网络连通性。</p><h3 id=94-检查时间同步>9.4 检查时间同步</h3><p>TOTP 对时间敏感。所有机器建议启用 NTP：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>timedatectl
+</span></span><span class=line><span class=cl>sudo timedatectl set-ntp <span class=nb>true</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果手机验证码总是不对，先看服务器和手机时间是否偏差过大。</p><h2 id=10-踩坑记录>10. 踩坑记录</h2><h3 id=-1-sessioncookiesdomain-写成-authexamplecom>❌ 1. <code>session.cookies.domain</code> 写成 <code>auth.example.com</code></h3><p>这是最常见坑。写成 <code>auth.example.com</code> 后，登录 Cookie 只对认证门户有效，访问 <code>grafana.example.com</code> 时仍然像没登录一样循环跳转。正确写法是共享父域：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>session</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>cookies</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w> </span><span class=l>example.com</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=-2-caddy-在容器里却写-1270019091>❌ 2. Caddy 在容器里却写 <code>127.0.0.1:9091</code></h3><p>容器里的 <code>127.0.0.1</code> 是容器自身。Caddy 容器访问 Authelia 容器，应使用同一个 Docker 网络里的服务名：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>forward_auth</span> <span class=gh>authelia:9091</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>uri</span> <span class=nd>/api/authz/forward-auth</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=-3-后端端口仍然暴露在局域网>❌ 3. 后端端口仍然暴露在局域网</h3><p>如果 <code>grafana:3000</code>、<code>prometheus:9090</code> 仍然可以被局域网直接访问，Authelia 只保护了域名入口，没有保护服务本身。后端端口应该只对 Caddy 可见。</p><h3 id=-4-默认策略用-one_factor-或-bypass>❌ 4. 默认策略用 <code>one_factor</code> 或 <code>bypass</code></h3><p><code>default_policy: deny</code> 是更安全的 Homelab 默认值。新增服务时显式写规则，虽然麻烦一点，但不会因为漏配把服务直接放出去。</p><h3 id=-5-保护会回调自己的服务>❌ 5. 保护会回调自己的服务</h3><p>某些应用有 Webhook、OAuth callback 或 API 路径，如果被二次认证拦住会异常。可以按路径做细粒度规则，例如只放行健康检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>access_control</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>rules</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w> </span><span class=l>app.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>resources</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=s2>&#34;^/healthz$&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>bypass</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>domain</span><span class=p>:</span><span class=w> </span><span class=l>app.example.com</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>two_factor</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=11-备份与恢复>11. 备份与恢复</h2><p>Authelia 的关键数据有三类：</p><div class=table-wrapper><table><thead><tr><th>数据</th><th>路径</th><th>重要性</th></tr></thead><tbody><tr><td>配置</td><td><code>~/authelia/config</code></td><td>高</td></tr><tr><td>密钥</td><td><code>~/authelia/secrets</code></td><td>极高，丢失会影响解密和会话</td></tr><tr><td>数据库</td><td><code>~/authelia/postgres</code></td><td>高，包含注册状态等数据</td></tr></tbody></table></div><p>简单备份命令：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nb>cd</span> ~
+</span></span><span class=line><span class=cl>tar --xattrs --acls -czf authelia-backup-<span class=k>$(</span>date +%F<span class=k>)</span>.tar.gz authelia/config authelia/secrets
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> authelia-postgres pg_dump -U authelia authelia <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=p>|</span> gzip &gt; authelia-postgres-<span class=k>$(</span>date +%F<span class=k>)</span>.sql.gz
+</span></span></code></pre></td></tr></table></div></div><p>恢复 PostgreSQL 时先启动数据库，再导入：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>gunzip -c authelia-postgres-2026-05-26.sql.gz <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=p>|</span> docker <span class=nb>exec</span> -i authelia-postgres psql -U authelia authelia
+</span></span></code></pre></td></tr></table></div></div><h2 id=12-安全加固建议>12. 安全加固建议</h2><ol><li><strong>Authelia 管理面只走 HTTPS</strong>：<code>auth.example.com</code> 不要提供明文 HTTP 入口。</li><li><strong>开启 TOTP</strong>：管理类服务使用 <code>two_factor</code>，不要只靠密码。</li><li><strong>后端端口不裸奔</strong>：Docker 用 <code>expose</code>，跨主机用防火墙限制来源。</li><li><strong>默认拒绝</strong>：<code>default_policy: deny</code>，新增服务手工加规则。</li><li><strong>日志接入集中日志系统</strong>：把 Authelia 和 Caddy 日志送到 Loki，方便审计谁访问了什么服务。</li><li><strong>不要保护所有东西</strong>：SSH、WireGuard、PVE 管理口这类高危入口，优先保持内网/VPN 访问，不建议仅靠 Web SSO 暴露公网。</li></ol><h2 id=总结>总结</h2><p>Authelia + Caddy Forward Auth 很适合 Homelab：部署成本不高，但能把分散在各个服务里的弱认证统一收口。它不是万能安全方案，不能替代防火墙、VPN、最小暴露原则；但它能显著降低「某个面板弱口令被撞开」的风险。</p><p>我的建议是：</p><div class=table-wrapper><table><thead><tr><th>场景</th><th>建议策略</th></tr></thead><tbody><tr><td>Grafana、Prometheus、qBittorrent</td><td>Authelia <code>two_factor</code></td></tr><tr><td>相册、只读状态页</td><td><code>one_factor</code> 或按用户组放行</td></tr><tr><td>PVE、NAS、路由器后台</td><td>优先内网/VPN，必要时 <code>two_factor</code> + IP 限制</td></tr><tr><td>Webhook、健康检查</td><td>单独路径 <code>bypass</code></td></tr><tr><td>所有新服务</td><td>默认拒绝，显式加 ACL</td></tr></tbody></table></div><p>一句话：<strong>HTTPS 解决加密，反向代理解决入口，Authelia 解决身份；三者组合起来，Homelab 才像一个可维护的内网平台。</strong></p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

@@ -1,0 +1,540 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="Docker 默认以 root 运行所有容器，容器逃逸就能拿下宿主机。从 Rootless Docker、Capability 裁剪、Seccomp 过滤到 AppArmor 强制访问控制，手把手给你的容器加上十道安全锁。"><title>Homelab Docker 安全加固实战：Rootless、Seccomp、AppArmor 与最佳实践</title><link rel=canonical href=https://shallowhave.github.io/p/docker-security-hardening/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Homelab Docker 安全加固实战：Rootless、Seccomp、AppArmor 与最佳实践"><meta property='og:description' content="Docker 默认以 root 运行所有容器，容器逃逸就能拿下宿主机。从 Rootless Docker、Capability 裁剪、Seccomp 过滤到 AppArmor 强制访问控制，手把手给你的容器加上十道安全锁。"><meta property='og:url' content='https://shallowhave.github.io/p/docker-security-hardening/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-28T01:21:02+08:00'><meta property='article:modified_time' content='2026-05-28T01:21:02+08:00'><meta name=twitter:title content="Homelab Docker 安全加固实战：Rootless、Seccomp、AppArmor 与最佳实践"><meta name=twitter:description content="Docker 默认以 root 运行所有容器，容器逃逸就能拿下宿主机。从 Rootless Docker、Capability 裁剪、Seccomp 过滤到 AppArmor 强制访问控制，手把手给你的容器加上十道安全锁。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-linux-capability-裁剪扔掉你用不到的权限>1. Linux Capability 裁剪：扔掉你用不到的权限</a><ol><li><a href=#什么是-capability>什么是 Capability？</a></li><li><a href=#实战最小权限启动容器>实战：最小权限启动容器</a></li><li><a href=#docker-compose-中的配置>Docker Compose 中的配置</a></li></ol></li><li><a href=#2-docker-默认-seccomp你的第一条防线>2. Docker 默认 Seccomp：你的第一条防线</a><ol><li><a href=#验证-seccomp-是否生效>验证 Seccomp 是否生效</a></li><li><a href=#查看-docker-默认-seccomp-配置文件>查看 Docker 默认 Seccomp 配置文件</a></li><li><a href=#当容器需要额外的系统调用时>当容器需要额外的系统调用时</a></li><li><a href=#完全禁用-seccomp不推荐>完全禁用 Seccomp（不推荐）</a></li></ol></li><li><a href=#3-apparmor强制访问控制>3. AppArmor：强制访问控制</a><ol><li><a href=#检查-apparmor-状态>检查 AppArmor 状态</a></li><li><a href=#docker-默认-apparmor-策略>Docker 默认 AppArmor 策略</a></li><li><a href=#应用自定义-apparmor-配置>应用自定义 AppArmor 配置</a></li><li><a href=#在-compose-中使用-apparmor>在 Compose 中使用 AppArmor</a></li></ol></li><li><a href=#4-read-only-root-filesystem让容器只读>4. Read-only Root Filesystem：让容器只读</a></li><li><a href=#5-user-namespace-remapping不让容器-root-等于宿主机-root>5. User Namespace Remapping：不让容器 root 等于宿主机 root</a><ol><li><a href=#原理>原理</a></li><li><a href=#实战配置>实战配置</a></li><li><a href=#限制和注意事项>限制和注意事项</a></li></ol></li><li><a href=#6-限制容器对-proc-和-sys-的访问>6. 限制容器对 /proc 和 /sys 的访问</a></li><li><a href=#7-非-root-用户运行容器>7. 非 root 用户运行容器</a></li><li><a href=#8-docker-守护进程安全加固>8. Docker 守护进程安全加固</a><ol><li><a href=#限制-docker-api-访问>限制 Docker API 访问</a></li><li><a href=#用-docker-socket-proxy-代替直接挂载-socket>用 docker-socket-proxy 代替直接挂载 socket</a></li><li><a href=#限制-docker-组访问>限制 docker 组访问</a></li></ol></li><li><a href=#9-docker-bench-security一键安全审计>9. Docker Bench Security：一键安全审计</a></li><li><a href=#10-终极模板一份生产级安全的-docker-compose>10. 终极模板：一份生产级安全的 Docker Compose</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/docker-security-hardening/>Homelab Docker 安全加固实战：Rootless、Seccomp、AppArmor 与最佳实践</a></h2><h3 class=article-subtitle>Docker 默认以 root 运行所有容器，容器逃逸就能拿下宿主机。从 Rootless Docker、Capability 裁剪、Seccomp 过滤到 AppArmor 强制访问控制，手把手给你的容器加上十道安全锁。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 28, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 9 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>容器的本质是进程隔离。但在默认配置下，Docker 做的隔离远没有你想象的那么安全。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl># 在容器里看到的是 root
+</span></span><span class=line><span class=cl>$ docker run --rm -it alpine id
+</span></span><span class=line><span class=cl>uid=0(root) gid=0(root) groups=0(root)
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl># 在宿主机上这个容器进程同样是 root
+</span></span><span class=line><span class=cl>$ ps aux | grep &lt;container-pid&gt;
+</span></span><span class=line><span class=cl>root  12345  ...  /bin/sh
+</span></span></code></pre></td></tr></table></div></div><p>更糟的是——默认容器拥有一大堆 Linux capabilities（14 个）、没有 Seccomp 过滤（虽然 Docker 有默认配置，但很多人不知道它的存在）、没有 AppArmor 限制，甚至 <code>/proc</code>、<code>/sys</code> 等内核文件系统也是可写的。</p><p>对 Homelab 来说，虽然威胁没那么大（一般不暴露公网），但<strong>内网不等于安全</strong>——你装过的每个第三方容器镜像，都可能有未知的安全风险：</p><ul><li>恶意镜像在运行后向宿主机写入定时任务</li><li>容器内未修复的 CVE 导致攻击者利用漏洞逃逸</li><li>容器进程读取宿主机的 <code>/proc/1/environ</code> 获取敏感信息</li></ul><p>本文从轻到重，逐步加固你的 Docker 环境。<strong>每一条都是可落地、可验证的实战操作。</strong></p><h2 id=1-linux-capability-裁剪扔掉你用不到的权限>1. Linux Capability 裁剪：扔掉你用不到的权限</h2><h3 id=什么是-capability>什么是 Capability？</h3><p>传统 UNIX 把进程分为 root (UID 0) 和普通用户，二分法太粗糙。Linux Capability 把 root 权限拆成 40+ 个细粒度能力，比如：</p><div class=table-wrapper><table><thead><tr><th>Capability</th><th>权限</th><th>风险</th></tr></thead><tbody><tr><td><code>CAP_NET_RAW</code></td><td>创建 RAW socket (ping, ARP)</td><td>可构造恶意网络包</td></tr><tr><td><code>CAP_SYS_ADMIN</code></td><td>挂载文件系统、命名空间操作</td><td><strong>逃逸的核心能力</strong></td></tr><tr><td><code>CAP_SYS_PTRACE</code></td><td>跟踪任何进程</td><td>可读写宿主机进程内存</td></tr><tr><td><code>CAP_NET_BIND_SERVICE</code></td><td>绑定低于 1024 的端口</td><td>低风险，但说明容器有网络特权</td></tr><tr><td><code>CAP_SYS_MODULE</code></td><td>加载内核模块</td><td>加载恶意内核模块即逃逸</td></tr></tbody></table></div><p>Docker 容器默认会带着一堆你根本不需要的 capabilities。来看怎么收窄。</p><h3 id=实战最小权限启动容器>实战：最小权限启动容器</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># ❌ 默认：14 个 capabilities 全给</span>
+</span></span><span class=line><span class=cl>docker run --rm alpine capsh --print
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># ✅ 最小权限：丢弃全部，只加你需要的</span>
+</span></span><span class=line><span class=cl>docker run --rm --cap-drop ALL --cap-add NET_BIND_SERVICE alpine capsh --print
+</span></span></code></pre></td></tr></table></div></div><p>用 <code>--cap-drop ALL</code> 丢弃所有权限，再用 <code>--cap-add</code> 逐一添加你明确需要的。这是<strong>安全容器的第一守则</strong>。</p><h3 id=docker-compose-中的配置>Docker Compose 中的配置</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>nginx</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>nginx:alpine</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>cap_drop</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>ALL</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>cap_add</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>NET_BIND_SERVICE  </span><span class=w> </span><span class=c># 绑定 80/443 端口需要</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>NET_RAW           </span><span class=w> </span><span class=c># 如果需要健康检查 ping</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>CHOWN             </span><span class=w> </span><span class=c># 日志文件属主修改</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><strong>踩坑经验</strong>：PostgreSQL 容器至少需要 <code>CHOWN</code>、<code>DAC_OVERRIDE</code>、<code>SETUID</code>、<code>SETGID</code>，<code>cap_drop</code> 太多会导致容器启动失败。建议先用默认跑起来，再用 <code>capsh --print</code> 查看实际需要的 capabilities，逐步裁剪。</p><h2 id=2-docker-默认-seccomp你的第一条防线>2. Docker 默认 Seccomp：你的第一条防线</h2><p>Seccomp（Secure Computing Mode）是 Linux 内核的安全机制，限制进程可以调用的<strong>系统调用</strong>。Docker 默认带了一份 Seccomp 配置，<strong>但大多数人不知道它在工作</strong>。</p><h3 id=验证-seccomp-是否生效>验证 Seccomp 是否生效</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 检查容器是否在 Seccomp 下运行</span>
+</span></span><span class=line><span class=cl>docker run --rm alpine grep Seccomp /proc/1/status
+</span></span><span class=line><span class=cl><span class=c1># 输出: Seccomp:	2  (2 = filter mode)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 尝试被禁用的系统调用——比如 unshare（逃逸常用）</span>
+</span></span><span class=line><span class=cl>docker run --rm alpine unshare --help
+</span></span><span class=line><span class=cl><span class=c1># 默认配置下 unshare 已经被 Seccomp 拦截！</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=查看-docker-默认-seccomp-配置文件>查看 Docker 默认 Seccomp 配置文件</h3><p>Docker 的默认 seccomp 配置在 <code>/etc/docker/seccomp-profiles/default.json</code>（如果存在）或内嵌在 Docker 守护进程里。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 提取 Docker 内置的默认 seccomp 配置</span>
+</span></span><span class=line><span class=cl><span class=nv>container</span><span class=o>=</span><span class=k>$(</span>docker run -d --rm alpine sleep 300<span class=k>)</span>
+</span></span><span class=line><span class=cl>docker inspect <span class=s2>&#34;</span><span class=nv>$container</span><span class=s2>&#34;</span> --format <span class=s1>&#39;{{ .HostConfig.SecurityOpt }}&#39;</span>
+</span></span><span class=line><span class=cl><span class=c1># 输出类似 [seccomp=built-in-default]</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=当容器需要额外的系统调用时>当容器需要额外的系统调用时</h3><p>某些应用（比如 Chrome/Selenium 需要 <code>clone</code> 和 <code>unshare</code>，或者某些数据库需要 <code>personality</code>）会被默认 seccomp 拦截。你可以创建自定义 seccomp 配置文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-json data-lang=json><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=nt>&#34;defaultAction&#34;</span><span class=p>:</span> <span class=s2>&#34;SCMP_ACT_ERRNO&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>  <span class=nt>&#34;architectures&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;SCMP_ARCH_X86_64&#34;</span><span class=p>,</span> <span class=s2>&#34;SCMP_ARCH_AARCH64&#34;</span><span class=p>],</span>
+</span></span><span class=line><span class=cl>  <span class=nt>&#34;syscalls&#34;</span><span class=p>:</span> <span class=p>[</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;names&#34;</span><span class=p>:</span> <span class=p>[</span><span class=s2>&#34;personality&#34;</span><span class=p>,</span> <span class=s2>&#34;clone&#34;</span><span class=p>,</span> <span class=s2>&#34;unshare&#34;</span><span class=p>],</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;action&#34;</span><span class=p>:</span> <span class=s2>&#34;SCMP_ACT_ALLOW&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;args&#34;</span><span class=p>:</span> <span class=p>[],</span>
+</span></span><span class=line><span class=cl>      <span class=nt>&#34;comment&#34;</span><span class=p>:</span> <span class=s2>&#34;Chrome浏览器所需的系统调用&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=p>]</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>保存为 <code>chrome-seccomp.json</code>，然后：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run --security-opt <span class=nv>seccomp</span><span class=o>=</span>chrome-seccomp.json selenium/chrome
+</span></span></code></pre></td></tr></table></div></div><h3 id=完全禁用-seccomp不推荐>完全禁用 Seccomp（不推荐）</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># ⚠️ 只在调试时使用</span>
+</span></span><span class=line><span class=cl>docker run --security-opt <span class=nv>seccomp</span><span class=o>=</span>unconfined alpine
+</span></span></code></pre></td></tr></table></div></div><p><strong>踩坑经验</strong>：如果你遇到 <code>operation not permitted</code> 但容器以 root 运行，且 capabilities 也给够了，十有八九是 Seccomp 拦截。检查 Docker 默认允许列表，或者用 <code>strace</code> 找出容器实际需要的系统调用。</p><h2 id=3-apparmor强制访问控制>3. AppArmor：强制访问控制</h2><p>AppArmor 是 Linux 的 LSM（Linux Security Module），通过附加到程序上的安全策略限制程序的文件访问、网络访问等能力。</p><h3 id=检查-apparmor-状态>检查 AppArmor 状态</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 宿主机是否启用了 AppArmor</span>
+</span></span><span class=line><span class=cl>sudo aa-status
+</span></span><span class=line><span class=cl><span class=c1># 如果没有输出，说明没有启用 AppArmor 或不是 AppArmor（可能是 SELinux）</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Docker 默认使用的 AppArmor 配置</span>
+</span></span><span class=line><span class=cl>docker run --rm alpine cat /proc/1/attr/current
+</span></span><span class=line><span class=cl><span class=c1># 输出: docker-default (enforce)  或  unconfined</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=docker-默认-apparmor-策略>Docker 默认 AppArmor 策略</h3><p>Docker 自带的 <code>docker-default</code> AppArmor 策略会限制：</p><ul><li>写入 <code>/proc/sys</code> 和 <code>/sys</code></li><li>挂载文件系统</li><li>创建设备节点</li><li>某些网络操作</li></ul><h3 id=应用自定义-apparmor-配置>应用自定义 AppArmor 配置</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 编写自定义策略文件</span>
+</span></span><span class=line><span class=cl>cat &gt; /etc/apparmor.d/docker-nginx <span class=s>&lt;&lt; &#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>#include &lt;tunables/global&gt;
+</span></span></span><span class=line><span class=cl><span class=s>
+</span></span></span><span class=line><span class=cl><span class=s>profile docker-nginx flags=(attach_disconnected) {
+</span></span></span><span class=line><span class=cl><span class=s>  #include &lt;abstractions/base&gt;
+</span></span></span><span class=line><span class=cl><span class=s>  
+</span></span></span><span class=line><span class=cl><span class=s>  network inet tcp,
+</span></span></span><span class=line><span class=cl><span class=s>  network inet udp,
+</span></span></span><span class=line><span class=cl><span class=s>  
+</span></span></span><span class=line><span class=cl><span class=s>  /etc/nginx/** r,
+</span></span></span><span class=line><span class=cl><span class=s>  /var/log/nginx/** w,
+</span></span></span><span class=line><span class=cl><span class=s>  /var/run/nginx.pid w,
+</span></span></span><span class=line><span class=cl><span class=s>  
+</span></span></span><span class=line><span class=cl><span class=s>  deny /proc/** w,
+</span></span></span><span class=line><span class=cl><span class=s>  deny /sys/** w,
+</span></span></span><span class=line><span class=cl><span class=s>  deny /etc/shadow r,
+</span></span></span><span class=line><span class=cl><span class=s>}
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 加载策略</span>
+</span></span><span class=line><span class=cl>sudo apparmor_parser -r -W /etc/apparmor.d/docker-nginx
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. 使用自定义策略启动容器</span>
+</span></span><span class=line><span class=cl>docker run --security-opt <span class=nv>apparmor</span><span class=o>=</span>docker-nginx nginx
+</span></span></code></pre></td></tr></table></div></div><h3 id=在-compose-中使用-apparmor>在 Compose 中使用 AppArmor</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>app</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>myapp:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>security_opt</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>apparmor=docker-myapp</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><strong>踩坑经验</strong>：AppArmor 配置错误会导致容器启动失败，且日志信息非常隐晦。先在 <code>complain</code> 模式下调试（日志只警告不拦截），确认没问题再切到 <code>enforce</code> 模式：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 先用 complain 模式加载</span>
+</span></span><span class=line><span class=cl>apparmor_parser -C -W /etc/apparmor.d/docker-nginx
+</span></span><span class=line><span class=cl><span class=c1># 观察 /var/log/syslog 或 audit.log</span>
+</span></span><span class=line><span class=cl><span class=c1># 确认无误后切到 enforce</span>
+</span></span><span class=line><span class=cl>apparmor_parser -r -W /etc/apparmor.d/docker-nginx
+</span></span></code></pre></td></tr></table></div></div><h2 id=4-read-only-root-filesystem让容器只读>4. Read-only Root Filesystem：让容器只读</h2><p>容器一旦被攻破，攻击者第一件事就是在 <code>/tmp</code> 或 <code>/var/tmp</code> 写恶意脚本。把根文件系统设为只读，可以有效阻止持久化攻击。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># ❌ 默认：容器的根文件系统可写</span>
+</span></span><span class=line><span class=cl>docker run alpine touch /malicious-file  <span class=c1># ✅ 成功</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># ✅ 只读：任何写入根文件系统的操作都会失败</span>
+</span></span><span class=line><span class=cl>docker run --read-only alpine touch /malicious-file
+</span></span><span class=line><span class=cl><span class=c1># touch: /malicious-file: Read-only file system</span>
+</span></span></code></pre></td></tr></table></div></div><p>但是容器服务通常需要写某些目录（日志、临时文件、数据）。用 <code>--tmpfs</code> 为特定目录创建可写空间：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run --read-only <span class=se>\
+</span></span></span><span class=line><span class=cl>  --tmpfs /tmp:noexec,nosuid,size<span class=o>=</span>64M <span class=se>\
+</span></span></span><span class=line><span class=cl>  --tmpfs /var/run:noexec,nosuid <span class=se>\
+</span></span></span><span class=line><span class=cl>  nginx:alpine
+</span></span></code></pre></td></tr></table></div></div><p>对应的 Compose 配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>nginx</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>nginx:alpine</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>read_only</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>tmpfs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/tmp:noexec,nosuid,size=64M</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/run:noexec,nosuid</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><strong>踩坑经验</strong>：很多基于 Debian/Ubuntu 的镜像在启动时会写 <code>/var/cache</code> 或 <code>/var/lib/apt</code>。遇到 <code>Read-only file system</code> 错误时，用 <code>docker diff &lt;container></code> 找出容器在写哪些路径，然后为这些路径添加 <code>tmpfs</code> 或 volume。</p><h2 id=5-user-namespace-remapping不让容器-root-等于宿主机-root>5. User Namespace Remapping：不让容器 root 等于宿主机 root</h2><p>这是<strong>最有效、也最容易被忽略</strong>的安全加固手段。</p><h3 id=原理>原理</h3><p>默认情况下，容器内的 UID 0 直接映射到宿主机的 UID 0。启用 userns-remap 后，容器内的 root (UID 0) 会被映射到宿主机上的一个<strong>非特权用户</strong>（比如 UID 165536）。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl># 没有 userns-remap：
+</span></span><span class=line><span class=cl>容器 root (0) → 宿主机 root (0)  ← 逃逸即 GAME OVER
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl># 有 userns-remap：
+</span></span><span class=line><span class=cl>容器 root (0) → 宿主机 nobody (165536)  ← 逃逸也只能访问这个用户的权限
+</span></span></code></pre></td></tr></table></div></div><h3 id=实战配置>实战配置</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 创建映射用户</span>
+</span></span><span class=line><span class=cl>sudo useradd --system dockremap
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 编辑 /etc/docker/daemon.json</span>
+</span></span><span class=line><span class=cl>sudo tee /etc/docker/daemon.json <span class=s>&lt;&lt; &#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>{
+</span></span></span><span class=line><span class=cl><span class=s>  &#34;userns-remap&#34;: &#34;dockremap&#34;
+</span></span></span><span class=line><span class=cl><span class=s>}
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. 重启 Docker</span>
+</span></span><span class=line><span class=cl>sudo systemctl restart docker
+</span></span></code></pre></td></tr></table></div></div><p>重启后验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 容器里的 root</span>
+</span></span><span class=line><span class=cl>docker run --rm alpine id
+</span></span><span class=line><span class=cl><span class=c1># uid=0(root) gid=0(root)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 宿主机上的进程</span>
+</span></span><span class=line><span class=cl>ps aux <span class=p>|</span> grep sleep
+</span></span><span class=line><span class=cl><span class=c1># dockremap  12345  0.0  0.0  ...  sleep 300</span>
+</span></span><span class=line><span class=cl><span class=c1># 进程属于 dockremap 用户，不是 root！</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=限制和注意事项>限制和注意事项</h3><p>⚠️ <strong>userns-remap 不是无痛的</strong>：</p><ol><li><strong>Volume 权限问题</strong>：容器内 UID 0 映射到宿主机 UID 165536，所以挂载到容器的 volume 必须允许这个 UID 写入：</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 宿主机创建目录并授权给映射用户</span>
+</span></span><span class=line><span class=cl>sudo mkdir -p /data/mysql
+</span></span><span class=line><span class=cl>sudo chown 165536:165536 /data/mysql
+</span></span></code></pre></td></tr></table></div></div><p>或者使用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 这行命令在宿主机上找出容器内的 UID 对应到哪个宿主机 UID</span>
+</span></span><span class=line><span class=cl><span class=c1># dockremap: 子UID范围从 /etc/subuid 查看</span>
+</span></span><span class=line><span class=cl>grep dockremap /etc/subuid
+</span></span><span class=line><span class=cl><span class=c1># dockremap:165536:65536</span>
+</span></span></code></pre></td></tr></table></div></div><ol start=2><li><p><strong>Host 网络模式不可用</strong>：userns-remap 后 <code>--network host</code> 会失败。</p></li><li><p><strong>privileged 模式不可用</strong>：<code>--privileged</code> 被禁止。</p></li><li><p><strong>某些系统级工具不可用</strong>：比如 <code>ping</code> 需要 <code>NET_RAW</code> capability。</p></li></ol><p><strong>踩坑经验</strong>：如果你正在运行大量容器，不要在<strong>生产负载下</strong>启用 userns-remap。它需要重建所有容器的网络命名空间映射，旧容器在重建前会无法启动。建议先在一台实验机器上验证，或者新建一个 Docker 节点逐步迁移。</p><h2 id=6-限制容器对-proc-和-sys-的访问>6. 限制容器对 /proc 和 /sys 的访问</h2><p>即使有了 AppArmor，某些敏感的内核文件系统仍然可以通过 Docker 的掩码（masked paths）来保护。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 默认情况下以下路径已被 mask（空卷覆盖）：</span>
+</span></span><span class=line><span class=cl><span class=c1># /proc/acpi, /proc/kcore, /proc/keys, /proc/latency_stats</span>
+</span></span><span class=line><span class=cl><span class=c1># /proc/timer_list, /proc/timer_stats, /proc/sched_debug</span>
+</span></span><span class=line><span class=cl><span class=c1># /sys/firmware, /sys/devices/virtual/powercap</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 检查容器的 masked paths</span>
+</span></span><span class=line><span class=cl>docker run --rm alpine ls /proc/kcore  <span class=c1># 不存在（已被 mask）</span>
+</span></span></code></pre></td></tr></table></div></div><p>自定义 masked paths：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker run <span class=se>\
+</span></span></span><span class=line><span class=cl>  --security-opt <span class=nv>mask</span><span class=o>=</span>/proc/self/sched:/proc/self/comm <span class=se>\
+</span></span></span><span class=line><span class=cl>  alpine
+</span></span></code></pre></td></tr></table></div></div><h2 id=7-非-root-用户运行容器>7. 非 root 用户运行容器</h2><p>镜像内部不要用 root 运行进程：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=line><span class=cl><span class=c># ❌ 默认：以 root 运行</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>FROM</span><span class=w> </span><span class=s>node:20-alpine</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>COPY</span> . /app<span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>CMD</span> <span class=p>[</span><span class=s2>&#34;node&#34;</span><span class=p>,</span> <span class=s2>&#34;server.js&#34;</span><span class=p>]</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=c># 进程在容器内是 root</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=c># ✅ 推荐：创建专用用户</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>FROM</span><span class=w> </span><span class=s>node:20-alpine</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>RUN</span> addgroup -S appgroup <span class=o>&amp;&amp;</span> adduser -S appuser -G appgroup<span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>COPY</span> . /app<span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>RUN</span> chown -R appuser:appgroup /app<span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>USER</span><span class=w> </span><span class=s>appuser</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>CMD</span> <span class=p>[</span><span class=s2>&#34;node&#34;</span><span class=p>,</span> <span class=s2>&#34;server.js&#34;</span><span class=p>]</span><span class=err>
+</span></span></span></code></pre></td></tr></table></div></div><p>对于官方镜像也可以指定用户：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>nginx</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>nginx:alpine</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>user</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;101:101&#34;</span><span class=w>  </span><span class=c># nginx 用户的 UID/GID</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><strong>踩坑经验</strong>：注意容器内使用 <code>USER</code> 指令后，绑定端口低于 1024 会失败（需要 <code>NET_BIND_SERVICE</code> capability）。对于 nginx，镜像内已配置了 libcap 自动降权，不需要额外处理。</p><h2 id=8-docker-守护进程安全加固>8. Docker 守护进程安全加固</h2><h3 id=限制-docker-api-访问>限制 Docker API 访问</h3><p>默认 Docker 只监听 Unix socket（<code>/var/run/docker.sock</code>），这在安全性上反而是最好的（只有 root 和 docker 组的用户能访问）。</p><p><strong>千万不要</strong>直接把 Docker API 暴露到 TCP：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># ❌ 高危：任何人都可以访问 Docker API</span>
+</span></span><span class=line><span class=cl>dockerd -H tcp://0.0.0.0:2375
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># ✅ 安全的远程访问：使用 TLS 双向认证</span>
+</span></span><span class=line><span class=cl>dockerd <span class=se>\
+</span></span></span><span class=line><span class=cl>  --tlsverify <span class=se>\
+</span></span></span><span class=line><span class=cl>  --tlscacert<span class=o>=</span>/etc/docker/ca.pem <span class=se>\
+</span></span></span><span class=line><span class=cl>  --tlscert<span class=o>=</span>/etc/docker/server-cert.pem <span class=se>\
+</span></span></span><span class=line><span class=cl>  --tlskey<span class=o>=</span>/etc/docker/server-key.pem <span class=se>\
+</span></span></span><span class=line><span class=cl>  -H<span class=o>=</span>0.0.0.0:2376
+</span></span></code></pre></td></tr></table></div></div><h3 id=用-docker-socket-proxy-代替直接挂载-socket>用 docker-socket-proxy 代替直接挂载 socket</h3><p>很多 Homelab 服务（Portainer、Traefik、Watchtower 等）需要访问 Docker socket。最安全的做法不是直接挂载 socket，而是用 <a class=link href=https://github.com/Tecnativa/docker-socket-proxy target=_blank rel=noopener>docker-socket-proxy</a> 提供<strong>只读的、有权限控制的 HTTP API</strong>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>docker-proxy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>tecnativa/docker-socket-proxy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/run/docker.sock:/var/run/docker.sock:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>CONTAINERS</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>        </span><span class=c># 只允许读取容器信息</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>SERVICES</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>TASKS</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>POST</span><span class=p>:</span><span class=w> </span><span class=m>0</span><span class=w>              </span><span class=c># 禁止创建操作</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>AUTH</span><span class=p>:</span><span class=w> </span><span class=m>0</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>traefik</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>traefik:v3</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>environment</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>DOCKER_HOST=tcp://docker-proxy:2375</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这样 Traefik 只能<strong>读取</strong>容器信息来动态配置路由，但无法创建、删除容器。</p><h3 id=限制-docker-组访问>限制 docker 组访问</h3><p><code>docker</code> 组即 root 权限。不要轻易把用户加入 docker 组：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 审计谁在 docker 组</span>
+</span></span><span class=line><span class=cl>getent group docker
+</span></span><span class=line><span class=cl><span class=c1># docker:x:999:user1,user2</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 考虑使用 Keycloak 或 Authelia 做细粒度授权（企业级需求）</span>
+</span></span><span class=line><span class=cl><span class=c1># 或者干脆用 Rootless Docker，让用户用非特权模式运行容器</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=9-docker-bench-security一键安全审计>9. Docker Bench Security：一键安全审计</h2><p>Docker 官方推荐的安全审计工具。安装即用：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 运行完整安全审计（会检查 200+ 项配置）</span>
+</span></span><span class=line><span class=cl>docker run --rm <span class=se>\
+</span></span></span><span class=line><span class=cl>  --net host <span class=se>\
+</span></span></span><span class=line><span class=cl>  --pid host <span class=se>\
+</span></span></span><span class=line><span class=cl>  --userns host <span class=se>\
+</span></span></span><span class=line><span class=cl>  --cap-add audit_control <span class=se>\
+</span></span></span><span class=line><span class=cl>  -e <span class=nv>DockerBenchArea</span><span class=o>=</span>/etc/docker <span class=se>\
+</span></span></span><span class=line><span class=cl>  -e <span class=nv>DockerBenchArea</span><span class=o>=</span>/usr/lib/systemd/system <span class=se>\
+</span></span></span><span class=line><span class=cl>  -e <span class=nv>DockerBenchArea</span><span class=o>=</span>/var/lib/docker <span class=se>\
+</span></span></span><span class=line><span class=cl>  -e <span class=nv>DockerBenchArea</span><span class=o>=</span>/etc/default/docker <span class=se>\
+</span></span></span><span class=line><span class=cl>  -v /etc:/etc:ro <span class=se>\
+</span></span></span><span class=line><span class=cl>  -v /usr/lib/systemd/system:/usr/lib/systemd/system:ro <span class=se>\
+</span></span></span><span class=line><span class=cl>  -v /var/lib/docker:/var/lib/docker:ro <span class=se>\
+</span></span></span><span class=line><span class=cl>  -v /var/run/docker.sock:/var/run/docker.sock:ro <span class=se>\
+</span></span></span><span class=line><span class=cl>  docker/docker-bench-security
+</span></span></code></pre></td></tr></table></div></div><p>输出示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>[INFO] 1 - Host Configuration
+</span></span><span class=line><span class=cl>[WARN] 1.1  - Ensure a separate partition for containers has been created
+</span></span><span class=line><span class=cl>[PASS] 1.2  - Ensure the container host has been Hardened
+</span></span><span class=line><span class=cl>[INFO] 1.3  - Ensure Docker is up to date
+</span></span><span class=line><span class=cl>...
+</span></span><span class=line><span class=cl>[WARN] 4.1  - Ensure a user for the container has been created
+</span></span><span class=line><span class=cl>[PASS] 4.2  - Ensure containers use only trusted base images
+</span></span><span class=line><span class=cl>[WARN] 5.4  - Ensure privileged containers are not used
+</span></span></code></pre></td></tr></table></div></div><p>把审计结果作为安全基线，逐项修复。</p><h2 id=10-终极模板一份生产级安全的-docker-compose>10. 终极模板：一份生产级安全的 Docker Compose</h2><p>把以上加固措施整合到一起，这是你可以直接用于 Homelab 的完整模板：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>secure-service</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>webapp</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>your-app:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 只读文件系统，只有必要目录可写</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>read_only</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>tmpfs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/tmp:noexec,nosuid,size=64M</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/var/cache:noexec,nosuid,size=32M</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 最小权限原则：只给需要的 capabilities</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>cap_drop</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>ALL</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>cap_add</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>NET_BIND_SERVICE</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>CHOWN</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>SETGID</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>SETUID</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>DAC_OVERRIDE</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 非 root 用户运行</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>user</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;1001:1001&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 安全选项</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>security_opt</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>seccomp=/path/to/custom-seccomp.json  </span><span class=w> </span><span class=c># 或直接使用 docker-default</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>apparmor=custom-profile                </span><span class=w> </span><span class=c># 可选</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=kc>no</span>-<span class=l>new-privileges:true                 </span><span class=w> </span><span class=c># 阻止容器进程获取新权限</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 内核参数安全</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>sysctls</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>net.ipv4.ip_unprivileged_port_start=80</span><span class=w> </span><span class=c># 非 root 用户绑定 80 端口</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c># 文件系统掩码</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>tmpfs</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/tmp</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>app_data:/data/app</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><strong>一份完整的 Checklist</strong> 供你在新装 Docker 后逐项检查：</p><div class=table-wrapper><table><thead><tr><th>#</th><th>项目</th><th>命令/配置</th></tr></thead><tbody><tr><td>1</td><td>启用 userns-remap</td><td><code>/etc/docker/daemon.json</code> > <code>userns-remap</code></td></tr><tr><td>2</td><td>Seccomp 生效</td><td><code>grep Seccomp /proc/1/status</code> 输出 2</td></tr><tr><td>3</td><td>AppArmor 生效</td><td><code>cat /proc/1/attr/current</code> 输出 <code>docker-default (enforce)</code></td></tr><tr><td>4</td><td>容器非 root 运行</td><td><code>user</code> 指令或 USER Dockerfile</td></tr><tr><td>5</td><td>Capability 裁剪</td><td><code>cap_drop: ALL</code> + 白名单 <code>cap_add</code></td></tr><tr><td>6</td><td>只读根文件系统</td><td><code>read_only: true</code> + tmpfs</td></tr><tr><td>7</td><td>非特权升级</td><td><code>no-new-privileges:true</code></td></tr><tr><td>8</td><td>Docker socket 代理</td><td>替代直接挂载 <code>/var/run/docker.sock</code></td></tr><tr><td>9</td><td>Docker Bench</td><td>定期运行安全审计</td></tr><tr><td>10</td><td>镜像签名</td><td><code>DOCKER_CONTENT_TRUST=1</code></td></tr></tbody></table></div><h2 id=总结>总结</h2><p>Docker 的安全加固不是非黑即白的事。<strong>每一层加固都有代价</strong>：userns-remap 会增加 volume 管理复杂度，read-only 文件系统需要排查服务写入路径，cap_drop ALL 可能让某些镜像没法启动。</p><p>我的建议是从最容易入手的做起：</p><ol><li><strong>马上就能做的</strong>：给所有新容器加 <code>cap_drop ALL</code> + <code>cap_add</code> 白名单、用 <code>read_only: true</code>、镜像内用 <code>USER</code></li><li><strong>逐步推进的</strong>：自定义 Seccomp 配置、AppArmor 策略、<code>no-new-privileges</code></li><li><strong>底大包天的</strong>：<code>userns-remap</code>——效果最好，但建议在重建环境时一次性启用</li></ol><p>安全是持续的工程，不是一次性配置。你的 Homelab 越多依赖容器，花在安全上的时间就越值得。</p><hr><p><em>延伸阅读：</em></p><ul><li><a class=link href=https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html target=_blank rel=noopener>Docker Security Cheat Sheet (OWASP)</a></li><li><a class=link href=https://github.com/docker/docker-bench-security target=_blank rel=noopener>Docker Bench Security</a></li><li><a class=link href=https://docs.docker.com/engine/security/ target=_blank rel=noopener>Docker 官方安全文档</a></li></ul></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

@@ -1,0 +1,600 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="从控制机到多台 Linux 节点，用 Ansible 建立 Homelab 运维基线：SSH 加固、自动更新、日志限额、防火墙、巡检脚本与常见踩坑，适合 PVE 虚拟机、NAS、Docker 主机统一管理。"><title>别再裸奔 SSH：用 Ansible 把 Homelab 基线安全和自动化巡检一次做扎实</title><link rel=canonical href=https://shallowhave.github.io/p/ansible-homelab-baseline/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="别再裸奔 SSH：用 Ansible 把 Homelab 基线安全和自动化巡检一次做扎实"><meta property='og:description' content="从控制机到多台 Linux 节点，用 Ansible 建立 Homelab 运维基线：SSH 加固、自动更新、日志限额、防火墙、巡检脚本与常见踩坑，适合 PVE 虚拟机、NAS、Docker 主机统一管理。"><meta property='og:url' content='https://shallowhave.github.io/p/ansible-homelab-baseline/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-16T09:00:56+08:00'><meta property='article:modified_time' content='2026-05-16T09:00:56+08:00'><meta name=twitter:title content="别再裸奔 SSH：用 Ansible 把 Homelab 基线安全和自动化巡检一次做扎实"><meta name=twitter:description content="从控制机到多台 Linux 节点，用 Ansible 建立 Homelab 运维基线：SSH 加固、自动更新、日志限额、防火墙、巡检脚本与常见踩坑，适合 PVE 虚拟机、NAS、Docker 主机统一管理。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言homelab-机器越多手工-ssh-越不靠谱>前言：Homelab 机器越多，手工 SSH 越不靠谱</a></li><li><a href=#1-方案设计把手工经验变成可重复执行的-playbook>1. 方案设计：把“手工经验”变成可重复执行的 Playbook</a></li><li><a href=#2-控制机准备安装-ansible-与-ssh-key>2. 控制机准备：安装 Ansible 与 SSH Key</a></li><li><a href=#3-项目结构与-inventory>3. 项目结构与 Inventory</a></li><li><a href=#4-基线变量把策略写清楚>4. 基线变量：把策略写清楚</a></li><li><a href=#5-核心-playbook系统更新ssh-加固ufw日志限额>5. 核心 Playbook：系统更新、SSH 加固、UFW、日志限额</a></li><li><a href=#6-更安全的执行顺序先保留一个逃生窗口>6. 更安全的执行顺序：先保留一个“逃生窗口”</a></li><li><a href=#7-批量巡检不要等告警响了才看机器状态>7. 批量巡检：不要等告警响了才看机器状态</a></li><li><a href=#8-docker-主机额外基线compose-目录备份标签和网络命名>8. Docker 主机额外基线：Compose 目录、备份标签和网络命名</a></li><li><a href=#9-踩坑记录>9. 踩坑记录</a><ol><li><a href=#-坑-1直接禁用密码登录结果密钥没生效>❌ 坑 1：直接禁用密码登录，结果密钥没生效</a></li><li><a href=#-坑-2ufw-开启后-docker-端口暴露行为不符合预期>❌ 坑 2：UFW 开启后 Docker 端口暴露行为不符合预期</a></li><li><a href=#-坑-3ansible-变量写得太死换一台机器就报错>❌ 坑 3：Ansible 变量写得太死，换一台机器就报错</a></li><li><a href=#-坑-4pve-宿主机被当普通-debian-改坏>❌ 坑 4：PVE 宿主机被当普通 Debian 改坏</a></li></ol></li><li><a href=#10-最佳实践总结>10. 最佳实践总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/ansible-homelab-baseline/>别再裸奔 SSH：用 Ansible 把 Homelab 基线安全和自动化巡检一次做扎实</a></h2><h3 class=article-subtitle>从控制机到多台 Linux 节点，用 Ansible 建立 Homelab 运维基线：SSH 加固、自动更新、日志限额、防火墙、巡检脚本与常见踩坑，适合 PVE 虚拟机、NAS、Docker 主机统一管理。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 16, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 8 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言homelab-机器越多手工-ssh-越不靠谱>前言：Homelab 机器越多，手工 SSH 越不靠谱</h2><p>Homelab 刚开始通常只有一台 PVE：登录后台、开几台虚拟机、跑几个 Docker 服务，一切都还可控。等服务慢慢变多后，问题就会暴露出来：</p><ul><li>每台 Linux VM 的用户、SSH 配置、防火墙策略不一致；</li><li>有的机器开了密码登录，有的机器还允许 root 直接登录；</li><li>Docker 日志没有限额，某个容器异常刷日志把系统盘写满；</li><li>安全更新靠想起来才手动执行，半年不重启也没人知道；</li><li>想确认所有节点磁盘、内存、内核版本，只能一台台 SSH 上去敲命令。</li></ul><p>这篇文章不讲 PVE 核显 SR-IOV，也不重复 vGPU 直通、反向代理或监控栈，而是补上 Homelab 里很容易被忽略的一层：<strong>用 Ansible 给所有 Linux 节点建立可重复执行的运维基线</strong>。</p><p>目标很明确：不用引入复杂平台，只用 SSH + YAML，就能完成 SSH 加固、基础软件安装、自动安全更新、日志限额、UFW 防火墙和批量巡检。</p><hr><h2 id=1-方案设计把手工经验变成可重复执行的-playbook>1. 方案设计：把“手工经验”变成可重复执行的 Playbook</h2><p>Ansible 的优势是无 Agent：被管节点只要能 SSH 登录，并且有 Python，就能执行任务。对于 Homelab 来说，这比上来就部署 K8s、SaltStack 或 Puppet 轻得多。</p><div class=table-wrapper><table><thead><tr><th>方案</th><th>优点</th><th>缺点</th><th>适合场景</th></tr></thead><tbody><tr><td>手工 SSH</td><td>上手最快</td><td>容易漏步骤、不可追踪、不可复现</td><td>1-2 台临时机器</td></tr><tr><td>Shell 脚本</td><td>简单直接</td><td>幂等性差，错误处理麻烦</td><td>单机初始化</td></tr><tr><td>Ansible</td><td>🏆 幂等、可分组、可复用</td><td>需要维护 inventory 和变量</td><td>3 台以上 Homelab 节点</td></tr><tr><td>Terraform</td><td>资源编排强</td><td>更偏基础设施创建，不擅长系统内配置</td><td>云资源 / VM 生命周期管理</td></tr></tbody></table></div><p>本文示例拓扑如下：</p><div class=table-wrapper><table><thead><tr><th>主机名</th><th>IP</th><th>角色</th></tr></thead><tbody><tr><td><code>pve</code></td><td><code>192.168.10.2</code></td><td>Proxmox VE 宿主机，只做巡检，不随意改配置</td></tr><tr><td><code>docker01</code></td><td><code>192.168.10.21</code></td><td>Docker 应用主机</td></tr><tr><td><code>nas01</code></td><td><code>192.168.10.31</code></td><td>NAS / 文件服务</td></tr><tr><td><code>ha01</code></td><td><code>192.168.10.41</code></td><td>Home Assistant 或其他 IoT 服务</td></tr></tbody></table></div><blockquote><p>建议：PVE 宿主机不要一上来就套用通用安全加固角色。PVE 自己有防火墙、集群、存储和网络管理逻辑，错误改 SSH 或网络可能导致管理面不可用。本文会把 PVE 放进单独分组，只跑只读巡检。</p></blockquote><hr><h2 id=2-控制机准备安装-ansible-与-ssh-key>2. 控制机准备：安装 Ansible 与 SSH Key</h2><p>控制机可以是你的笔记本，也可以是一台专门的运维 VM。Debian / Ubuntu 上安装：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo apt update
+</span></span><span class=line><span class=cl>sudo apt install -y ansible sshpass python3-pip
+</span></span><span class=line><span class=cl>ansible-galaxy collection install community.general
+</span></span><span class=line><span class=cl>ansible --version
+</span></span></code></pre></td></tr></table></div></div><p>生成专用 SSH Key，不建议复用个人主力密钥：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ssh-keygen -t ed25519 -C <span class=s2>&#34;ansible-homelab&#34;</span> -f ~/.ssh/ansible_homelab
+</span></span></code></pre></td></tr></table></div></div><p>把公钥分发到被管节点。首次初始化时如果还只能密码登录，可以临时用 <code>ssh-copy-id</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ssh-copy-id -i ~/.ssh/ansible_homelab.pub admin@192.168.10.21
+</span></span><span class=line><span class=cl>ssh-copy-id -i ~/.ssh/ansible_homelab.pub admin@192.168.10.31
+</span></span><span class=line><span class=cl>ssh-copy-id -i ~/.ssh/ansible_homelab.pub admin@192.168.10.41
+</span></span></code></pre></td></tr></table></div></div><p>如果节点是最小化安装，先确认 Python 存在：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ssh -i ~/.ssh/ansible_homelab admin@192.168.10.21 <span class=s1>&#39;python3 --version || sudo apt install -y python3&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=3-项目结构与-inventory>3. 项目结构与 Inventory</h2><p>创建一个独立目录，后续所有变更都放进 Git：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p ~/homelab-ansible/<span class=o>{</span>group_vars,roles,playbooks,scripts<span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> ~/homelab-ansible
+</span></span></code></pre></td></tr></table></div></div><p><code>inventory.yml</code> 示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>all</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>vars</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ansible_user</span><span class=p>:</span><span class=w> </span><span class=l>admin</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ansible_ssh_private_key_file</span><span class=p>:</span><span class=w> </span><span class=l>~/.ssh/ansible_homelab</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ansible_become</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ansible_become_method</span><span class=p>:</span><span class=w> </span><span class=l>sudo</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>children</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>linux_nodes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>hosts</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>docker01</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>ansible_host</span><span class=p>:</span><span class=w> </span><span class=m>192.168.10.21</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>nas01</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>ansible_host</span><span class=p>:</span><span class=w> </span><span class=m>192.168.10.31</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>ha01</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>ansible_host</span><span class=p>:</span><span class=w> </span><span class=m>192.168.10.41</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>pve_nodes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>hosts</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>pve</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>ansible_host</span><span class=p>:</span><span class=w> </span><span class=m>192.168.10.2</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>ansible_user</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>先做连通性测试：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ansible -i inventory.yml linux_nodes -m ping
+</span></span><span class=line><span class=cl>ansible -i inventory.yml all -m setup -a <span class=s1>&#39;filter=ansible_distribution*&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果 <code>ping</code> 成功，输出类似：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>docker01 | SUCCESS =&gt; {&#34;changed&#34;: false, &#34;ping&#34;: &#34;pong&#34;}
+</span></span><span class=line><span class=cl>nas01    | SUCCESS =&gt; {&#34;changed&#34;: false, &#34;ping&#34;: &#34;pong&#34;}
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=4-基线变量把策略写清楚>4. 基线变量：把策略写清楚</h2><p>创建 <code>group_vars/linux_nodes.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>baseline_packages</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>curl</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>wget</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>vim</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>htop</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>iftop</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>iotop</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>net-tools</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>ca-certificates</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>gnupg</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>unattended-upgrades</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>ufw</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>fail2ban</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>ssh_port</span><span class=p>:</span><span class=w> </span><span class=m>22</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>allowed_tcp_ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=m>22</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=m>80</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=m>443</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>admin_users</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>admin</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>groups</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;sudo,docker&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>shell</span><span class=p>:</span><span class=w> </span><span class=l>/bin/bash</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这里有两个原则：</p><ol><li><strong>变量集中管理</strong>：端口、软件包、用户策略不要散落在多个 playbook；</li><li><strong>最小可用</strong>：先做安全基线，不要一开始就把 Docker、数据库、反代、监控全部混在一个角色里。</li></ol><hr><h2 id=5-核心-playbook系统更新ssh-加固ufw日志限额>5. 核心 Playbook：系统更新、SSH 加固、UFW、日志限额</h2><p>创建 <code>playbooks/baseline.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>  1
+</span><span class=lnt>  2
+</span><span class=lnt>  3
+</span><span class=lnt>  4
+</span><span class=lnt>  5
+</span><span class=lnt>  6
+</span><span class=lnt>  7
+</span><span class=lnt>  8
+</span><span class=lnt>  9
+</span><span class=lnt> 10
+</span><span class=lnt> 11
+</span><span class=lnt> 12
+</span><span class=lnt> 13
+</span><span class=lnt> 14
+</span><span class=lnt> 15
+</span><span class=lnt> 16
+</span><span class=lnt> 17
+</span><span class=lnt> 18
+</span><span class=lnt> 19
+</span><span class=lnt> 20
+</span><span class=lnt> 21
+</span><span class=lnt> 22
+</span><span class=lnt> 23
+</span><span class=lnt> 24
+</span><span class=lnt> 25
+</span><span class=lnt> 26
+</span><span class=lnt> 27
+</span><span class=lnt> 28
+</span><span class=lnt> 29
+</span><span class=lnt> 30
+</span><span class=lnt> 31
+</span><span class=lnt> 32
+</span><span class=lnt> 33
+</span><span class=lnt> 34
+</span><span class=lnt> 35
+</span><span class=lnt> 36
+</span><span class=lnt> 37
+</span><span class=lnt> 38
+</span><span class=lnt> 39
+</span><span class=lnt> 40
+</span><span class=lnt> 41
+</span><span class=lnt> 42
+</span><span class=lnt> 43
+</span><span class=lnt> 44
+</span><span class=lnt> 45
+</span><span class=lnt> 46
+</span><span class=lnt> 47
+</span><span class=lnt> 48
+</span><span class=lnt> 49
+</span><span class=lnt> 50
+</span><span class=lnt> 51
+</span><span class=lnt> 52
+</span><span class=lnt> 53
+</span><span class=lnt> 54
+</span><span class=lnt> 55
+</span><span class=lnt> 56
+</span><span class=lnt> 57
+</span><span class=lnt> 58
+</span><span class=lnt> 59
+</span><span class=lnt> 60
+</span><span class=lnt> 61
+</span><span class=lnt> 62
+</span><span class=lnt> 63
+</span><span class=lnt> 64
+</span><span class=lnt> 65
+</span><span class=lnt> 66
+</span><span class=lnt> 67
+</span><span class=lnt> 68
+</span><span class=lnt> 69
+</span><span class=lnt> 70
+</span><span class=lnt> 71
+</span><span class=lnt> 72
+</span><span class=lnt> 73
+</span><span class=lnt> 74
+</span><span class=lnt> 75
+</span><span class=lnt> 76
+</span><span class=lnt> 77
+</span><span class=lnt> 78
+</span><span class=lnt> 79
+</span><span class=lnt> 80
+</span><span class=lnt> 81
+</span><span class=lnt> 82
+</span><span class=lnt> 83
+</span><span class=lnt> 84
+</span><span class=lnt> 85
+</span><span class=lnt> 86
+</span><span class=lnt> 87
+</span><span class=lnt> 88
+</span><span class=lnt> 89
+</span><span class=lnt> 90
+</span><span class=lnt> 91
+</span><span class=lnt> 92
+</span><span class=lnt> 93
+</span><span class=lnt> 94
+</span><span class=lnt> 95
+</span><span class=lnt> 96
+</span><span class=lnt> 97
+</span><span class=lnt> 98
+</span><span class=lnt> 99
+</span><span class=lnt>100
+</span><span class=lnt>101
+</span><span class=lnt>102
+</span><span class=lnt>103
+</span><span class=lnt>104
+</span><span class=lnt>105
+</span><span class=lnt>106
+</span><span class=lnt>107
+</span><span class=lnt>108
+</span><span class=lnt>109
+</span><span class=lnt>110
+</span><span class=lnt>111
+</span><span class=lnt>112
+</span><span class=lnt>113
+</span><span class=lnt>114
+</span><span class=lnt>115
+</span><span class=lnt>116
+</span><span class=lnt>117
+</span><span class=lnt>118
+</span><span class=lnt>119
+</span><span class=lnt>120
+</span><span class=lnt>121
+</span><span class=lnt>122
+</span><span class=lnt>123
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nn>---</span><span class=w>
+</span></span></span><span class=line><span class=cl>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Apply Homelab Linux baseline</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>hosts</span><span class=p>:</span><span class=w> </span><span class=l>linux_nodes</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>gather_facts</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>tasks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Install baseline packages</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.apt</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ baseline_packages }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>state</span><span class=p>:</span><span class=w> </span><span class=l>present</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>update_cache</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>cache_valid_time</span><span class=p>:</span><span class=w> </span><span class=m>3600</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>when</span><span class=p>:</span><span class=w> </span><span class=l>ansible_os_family == &#34;Debian&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Ensure sudo group can sudo without password for automation user</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.copy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>dest</span><span class=p>:</span><span class=w> </span><span class=l>/etc/sudoers.d/90-homelab-admin</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>content</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;%sudo ALL=(ALL:ALL) NOPASSWD:ALL\n&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>owner</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>group</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>mode</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0440&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>validate</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;visudo -cf %s&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Harden sshd config</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.copy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>dest</span><span class=p>:</span><span class=w> </span><span class=l>/etc/ssh/sshd_config.d/99-homelab-baseline.conf</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>owner</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>group</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>mode</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0644&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>content</span><span class=p>:</span><span class=w> </span><span class=p>|</span><span class=sd>
+</span></span></span><span class=line><span class=cl><span class=sd>          PermitRootLogin no
+</span></span></span><span class=line><span class=cl><span class=sd>          PasswordAuthentication no
+</span></span></span><span class=line><span class=cl><span class=sd>          PubkeyAuthentication yes
+</span></span></span><span class=line><span class=cl><span class=sd>          X11Forwarding no
+</span></span></span><span class=line><span class=cl><span class=sd>          ClientAliveInterval 300
+</span></span></span><span class=line><span class=cl><span class=sd>          ClientAliveCountMax 2</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>notify</span><span class=p>:</span><span class=w> </span><span class=l>Restart ssh</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Configure unattended upgrades</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.copy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>dest</span><span class=p>:</span><span class=w> </span><span class=l>/etc/apt/apt.conf.d/20auto-upgrades</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>owner</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>group</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>mode</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0644&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>content</span><span class=p>:</span><span class=w> </span><span class=p>|</span><span class=sd>
+</span></span></span><span class=line><span class=cl><span class=sd>          APT::Periodic::Update-Package-Lists &#34;1&#34;;
+</span></span></span><span class=line><span class=cl><span class=sd>          APT::Periodic::Unattended-Upgrade &#34;1&#34;;
+</span></span></span><span class=line><span class=cl><span class=sd>          APT::Periodic::AutocleanInterval &#34;7&#34;;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Set journald disk limit</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.copy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>dest</span><span class=p>:</span><span class=w> </span><span class=l>/etc/systemd/journald.conf.d/99-homelab-limit.conf</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>owner</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>group</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>mode</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0644&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>content</span><span class=p>:</span><span class=w> </span><span class=p>|</span><span class=sd>
+</span></span></span><span class=line><span class=cl><span class=sd>          [Journal]
+</span></span></span><span class=line><span class=cl><span class=sd>          SystemMaxUse=500M
+</span></span></span><span class=line><span class=cl><span class=sd>          RuntimeMaxUse=100M
+</span></span></span><span class=line><span class=cl><span class=sd>          MaxRetentionSec=14day</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>notify</span><span class=p>:</span><span class=w> </span><span class=l>Restart journald</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Check whether Docker is installed</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.stat</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=l>/usr/bin/docker</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>register</span><span class=p>:</span><span class=w> </span><span class=l>docker_binary</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Ensure Docker config directory exists</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.file</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=l>/etc/docker</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>state</span><span class=p>:</span><span class=w> </span><span class=l>directory</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>owner</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>group</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>mode</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0755&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>when</span><span class=p>:</span><span class=w> </span><span class=l>docker_binary.stat.exists</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Configure Docker daemon log rotation if Docker exists</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.copy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>dest</span><span class=p>:</span><span class=w> </span><span class=l>/etc/docker/daemon.json</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>owner</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>group</span><span class=p>:</span><span class=w> </span><span class=l>root</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>mode</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0644&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>content</span><span class=p>:</span><span class=w> </span><span class=p>|</span><span class=sd>
+</span></span></span><span class=line><span class=cl><span class=sd>          {
+</span></span></span><span class=line><span class=cl><span class=sd>            &#34;log-driver&#34;: &#34;json-file&#34;,
+</span></span></span><span class=line><span class=cl><span class=sd>            &#34;log-opts&#34;: {
+</span></span></span><span class=line><span class=cl><span class=sd>              &#34;max-size&#34;: &#34;50m&#34;,
+</span></span></span><span class=line><span class=cl><span class=sd>              &#34;max-file&#34;: &#34;3&#34;
+</span></span></span><span class=line><span class=cl><span class=sd>            },
+</span></span></span><span class=line><span class=cl><span class=sd>            &#34;live-restore&#34;: true
+</span></span></span><span class=line><span class=cl><span class=sd>          }</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>when</span><span class=p>:</span><span class=w> </span><span class=l>docker_binary.stat.exists</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>notify</span><span class=p>:</span><span class=w> </span><span class=l>Restart docker</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Allow required TCP ports in UFW</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>community.general.ufw</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>rule</span><span class=p>:</span><span class=w> </span><span class=l>allow</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ item }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>proto</span><span class=p>:</span><span class=w> </span><span class=l>tcp</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>loop</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ allowed_tcp_ports }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Enable UFW with deny incoming policy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>community.general.ufw</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>state</span><span class=p>:</span><span class=w> </span><span class=l>enabled</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>policy</span><span class=p>:</span><span class=w> </span><span class=l>deny</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>direction</span><span class=p>:</span><span class=w> </span><span class=l>incoming</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>handlers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Restart ssh</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.service</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>ssh</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>state</span><span class=p>:</span><span class=w> </span><span class=l>restarted</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Restart journald</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.service</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>systemd-journald</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>state</span><span class=p>:</span><span class=w> </span><span class=l>restarted</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Restart docker</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.service</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>docker</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>state</span><span class=p>:</span><span class=w> </span><span class=l>restarted</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>failed_when</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>上面这段配置做了几件关键事情：</p><ul><li>禁止 root SSH 和密码登录，只允许密钥；</li><li>自动安装常用排障工具；</li><li>开启安全更新；</li><li>限制 journald 日志占用；</li><li>给 Docker 日志加 <code>max-size</code> 和 <code>max-file</code>，避免容器刷爆系统盘；</li><li>UFW 默认拒绝入站，只开放明确端口。</li></ul><p>执行前先 dry-run：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ansible-playbook -i inventory.yml playbooks/baseline.yml --check --diff
+</span></span></code></pre></td></tr></table></div></div><p>确认无误后再真正执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ansible-playbook -i inventory.yml playbooks/baseline.yml --diff
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=6-更安全的执行顺序先保留一个逃生窗口>6. 更安全的执行顺序：先保留一个“逃生窗口”</h2><p>SSH 加固最容易把自己锁在门外。我的建议是第一次执行时分两步：</p><ol><li>先创建用户、公钥、sudoers，不改 <code>PasswordAuthentication</code>；</li><li>新开一个终端，用密钥确认能登录；</li><li>再禁用密码登录和 root 登录；</li><li>不要关闭旧 SSH 会话，直到新会话验证成功。</li></ol><p>可以临时用 ad-hoc 命令验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ansible -i inventory.yml linux_nodes -m <span class=nb>command</span> -a <span class=s1>&#39;whoami&#39;</span>
+</span></span><span class=line><span class=cl>ansible -i inventory.yml linux_nodes -m <span class=nb>command</span> -a <span class=s1>&#39;sudo -n true&#39;</span>
+</span></span><span class=line><span class=cl>ansible -i inventory.yml linux_nodes -m <span class=nb>command</span> -a <span class=s1>&#39;ss -tlnp | grep :22&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果你改了 SSH 端口，比如 <code>2222</code>，Inventory 也要同步：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>docker01</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ansible_host</span><span class=p>:</span><span class=w> </span><span class=m>192.168.10.21</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ansible_port</span><span class=p>:</span><span class=w> </span><span class=m>2222</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><hr><h2 id=7-批量巡检不要等告警响了才看机器状态>7. 批量巡检：不要等告警响了才看机器状态</h2><p>基础加固完成后，可以再加一个只读巡检 Playbook。创建 <code>playbooks/audit.yml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nn>---</span><span class=w>
+</span></span></span><span class=line><span class=cl>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Homelab quick audit</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>hosts</span><span class=p>:</span><span class=w> </span><span class=l>all</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>gather_facts</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>become</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>tasks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Show system summary</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.debug</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>msg</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>host</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ inventory_hostname }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>ip</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ ansible_default_ipv4.address | default(&#39;unknown&#39;) }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>distro</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ ansible_distribution }} {{ ansible_distribution_version }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>kernel</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ ansible_kernel }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>uptime_days</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ (ansible_uptime_seconds / 86400) | round(1) }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>mem_total_mb</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ ansible_memtotal_mb }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Disk usage</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.command</span><span class=p>:</span><span class=w> </span><span class=l>df -h /</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>changed_when</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>register</span><span class=p>:</span><span class=w> </span><span class=l>root_disk</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Print root disk</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.debug</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>var</span><span class=p>:</span><span class=w> </span><span class=l>root_disk.stdout_lines</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Check failed systemd units</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.command</span><span class=p>:</span><span class=w> </span><span class=l>systemctl --failed --no-pager</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>changed_when</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>failed_when</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>register</span><span class=p>:</span><span class=w> </span><span class=l>failed_units</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Print failed units</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.debug</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>var</span><span class=p>:</span><span class=w> </span><span class=l>failed_units.stdout_lines</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>ansible-playbook -i inventory.yml playbooks/audit.yml
+</span></span></code></pre></td></tr></table></div></div><p>你也可以用 cron 每天跑一次，把结果写入日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p ~/homelab-ansible/logs
+</span></span><span class=line><span class=cl>cat &gt; ~/homelab-ansible/scripts/nightly-audit.sh <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>#!/usr/bin/env bash
+</span></span></span><span class=line><span class=cl><span class=s>set -euo pipefail
+</span></span></span><span class=line><span class=cl><span class=s>cd &#34;$HOME/homelab-ansible&#34;
+</span></span></span><span class=line><span class=cl><span class=s>mkdir -p logs
+</span></span></span><span class=line><span class=cl><span class=s>ansible-playbook -i inventory.yml playbooks/audit.yml \
+</span></span></span><span class=line><span class=cl><span class=s>  &gt; &#34;logs/audit-$(date +%F).log&#34; 2&gt;&amp;1
+</span></span></span><span class=line><span class=cl><span class=s>find logs -name &#39;audit-*.log&#39; -mtime +30 -delete
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>chmod +x ~/homelab-ansible/scripts/nightly-audit.sh
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=o>(</span>crontab -l 2&gt;/dev/null<span class=p>;</span> <span class=nb>echo</span> <span class=s1>&#39;30 2 * * * /home/admin/homelab-ansible/scripts/nightly-audit.sh&#39;</span><span class=o>)</span> <span class=p>|</span> crontab -
+</span></span></code></pre></td></tr></table></div></div><p>如果你已经部署了 Prometheus + Grafana，可以把这个巡检当作补充：监控负责持续指标，Ansible 负责配置一致性和批量状态确认。</p><hr><h2 id=8-docker-主机额外基线compose-目录备份标签和网络命名>8. Docker 主机额外基线：Compose 目录、备份标签和网络命名</h2><p>Docker 主机最怕“随手起容器”。建议统一约定：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>/opt/compose/&lt;stack&gt;/docker-compose.yml
+</span></span><span class=line><span class=cl>/opt/compose/&lt;stack&gt;/.env
+</span></span><span class=line><span class=cl>/opt/data/&lt;stack&gt;/
+</span></span></code></pre></td></tr></table></div></div><p>用 Ansible 创建目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Prepare Docker compose layout</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>hosts</span><span class=p>:</span><span class=w> </span><span class=l>docker01</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>become</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>tasks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>Create compose and data directories</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>ansible.builtin.file</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{ item }}&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>state</span><span class=p>:</span><span class=w> </span><span class=l>directory</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>owner</span><span class=p>:</span><span class=w> </span><span class=l>admin</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>group</span><span class=p>:</span><span class=w> </span><span class=l>admin</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>mode</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0755&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>loop</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>/opt/compose</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span>- <span class=l>/opt/data</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>Compose 文件里给需要备份的数据卷加清晰标签或目录名，例如：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>uptime-kuma</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>louislam/uptime-kuma:1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>/opt/data/uptime-kuma:/app/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>proxy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>homelab.backup</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;true&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>homelab.owner</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;ops&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>proxy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>external</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>这样后续不管是用 Restic 做文件级备份，还是接入 Traefik、监控告警，都能通过目录和标签快速定位。</p><hr><h2 id=9-踩坑记录>9. 踩坑记录</h2><h3 id=-坑-1直接禁用密码登录结果密钥没生效>❌ 坑 1：直接禁用密码登录，结果密钥没生效</h3><p>现象：Playbook 执行成功后，新 SSH 会话登录失败，旧会话一断就只能接显示器或进 PVE Console。</p><p>修复步骤：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在旧会话中检查 authorized_keys 权限</span>
+</span></span><span class=line><span class=cl>ls -ld ~/.ssh
+</span></span><span class=line><span class=cl>ls -l ~/.ssh/authorized_keys
+</span></span><span class=line><span class=cl>chmod <span class=m>700</span> ~/.ssh
+</span></span><span class=line><span class=cl>chmod <span class=m>600</span> ~/.ssh/authorized_keys
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 检查 sshd 实际配置</span>
+</span></span><span class=line><span class=cl>sudo sshd -T <span class=p>|</span> grep -E <span class=s1>&#39;passwordauthentication|permitrootlogin|pubkeyauthentication&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>第一次加固时不要同时关闭旧终端，这是最重要的逃生窗口。</p><h3 id=-坑-2ufw-开启后-docker-端口暴露行为不符合预期>❌ 坑 2：UFW 开启后 Docker 端口暴露行为不符合预期</h3><p>Docker 会操作 iptables，某些情况下容器映射端口可能绕过 UFW 的直觉规则。解决思路：</p><ul><li>对外服务尽量只通过反向代理入口暴露；</li><li>内部服务绑定到 <code>127.0.0.1</code> 或内网地址；</li><li>对真正需要公网访问的端口，在路由器、防火墙、反代三层都明确限制。</li></ul><p>检查当前监听：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>sudo ss -tulpen
+</span></span><span class=line><span class=cl>sudo iptables -S DOCKER-USER
+</span></span></code></pre></td></tr></table></div></div><p>需要更强约束时，可以在 <code>DOCKER-USER</code> 链里加白名单策略，而不是只依赖 UFW。</p><h3 id=-坑-3ansible-变量写得太死换一台机器就报错>❌ 坑 3：Ansible 变量写得太死，换一台机器就报错</h3><p>例如所有机器都套 <code>groups: sudo,docker</code>，但 NAS 节点没安装 Docker，用户组不存在就会失败。解决方法是分组：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>children</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>docker_hosts</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>hosts</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>docker01</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>ansible_host</span><span class=p>:</span><span class=w> </span><span class=m>192.168.10.21</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>storage_hosts</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>hosts</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>nas01</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>ansible_host</span><span class=p>:</span><span class=w> </span><span class=m>192.168.10.31</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>然后只对 <code>docker_hosts</code> 执行 Docker 相关任务。</p><h3 id=-坑-4pve-宿主机被当普通-debian-改坏>❌ 坑 4：PVE 宿主机被当普通 Debian 改坏</h3><p>PVE 虽然基于 Debian，但它不是普通 Debian。不要随意对 PVE 宿主机批量套用：</p><ul><li>网络配置重写；</li><li>防火墙默认策略；</li><li>unattended-upgrades 自动重启；</li><li>Docker 安装脚本；</li><li>内核参数模板。</li></ul><p>PVE 更适合单独写 <code>pve_audit.yml</code> 做只读巡检，真正改动前先快照配置并确认影响面。</p><hr><h2 id=10-最佳实践总结>10. 最佳实践总结</h2><div class=table-wrapper><table><thead><tr><th>场景</th><th>推荐做法</th><th>理由</th></tr></thead><tbody><tr><td>3 台以内临时环境</td><td>Shell + 文档</td><td>成本最低</td></tr><tr><td>3 台以上长期 Homelab</td><td>🏆 Ansible Inventory + Playbook</td><td>配置可复现、可审计</td></tr><tr><td>PVE 宿主机</td><td>只读巡检优先</td><td>避免自动化误改管理面</td></tr><tr><td>Docker 主机</td><td>日志限额 + 目录约定 + 标签</td><td>避免磁盘爆满，方便备份和迁移</td></tr><tr><td>SSH 加固</td><td>先验证密钥，再禁密码</td><td>防止把自己锁出去</td></tr><tr><td>防火墙</td><td>默认拒绝入站，只开放必要端口</td><td>降低横向移动风险</td></tr></tbody></table></div><p>一句话总结：<strong>Homelab 的自动化不是为了炫技，而是为了让每一次初始化、加固、巡检都可重复、可回滚、可解释。</strong></p><p>如果你已经搭好了反向代理、监控栈、备份系统，那么下一步就应该把这些“靠记忆维护的配置”沉淀成 Ansible Playbook。机器坏了可以重装，配置丢了才是真正麻烦。</p><p>关联阅读：</p><ul><li><a class=link href=/p/traefik-reverse-proxy-homelab/>Homelab 必备：Traefik 反向代理 + SSL 证书自动化部署指南</a></li><li><a class=link href=/p/homelab-monitoring-stack-guide/>Homelab 监控体系：Prometheus + Grafana + Node Exporter + Alertmanager 实战</a></li><li><a class=link href=/p/restic-minio-homelab-backup/>别只会快照：用 Restic + MinIO 给 Homelab 做一套可恢复的文件级备份</a></li></ul></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

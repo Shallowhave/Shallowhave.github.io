@@ -1,0 +1,372 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="当一台 PVE 扛不住的时候，就该上集群了。本文从 Corosync 集群搭建、共享存储配置、Live Migration 热迁移机制，到 HA 高可用策略，完整覆盖三节点 PVE 集群的落地全过程，附带故障模拟和踩坑实录。"><title>Proxmox VE 集群与高可用实战：从零搭建三节点 HA 虚拟化平台</title><link rel=canonical href=https://shallowhave.github.io/p/pve-cluster-ha-guide/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Proxmox VE 集群与高可用实战：从零搭建三节点 HA 虚拟化平台"><meta property='og:description' content="当一台 PVE 扛不住的时候，就该上集群了。本文从 Corosync 集群搭建、共享存储配置、Live Migration 热迁移机制，到 HA 高可用策略，完整覆盖三节点 PVE 集群的落地全过程，附带故障模拟和踩坑实录。"><meta property='og:url' content='https://shallowhave.github.io/p/pve-cluster-ha-guide/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-29T09:00:00+08:00'><meta property='article:modified_time' content='2026-05-29T09:00:00+08:00'><meta name=twitter:title content="Proxmox VE 集群与高可用实战：从零搭建三节点 HA 虚拟化平台"><meta name=twitter:description content="当一台 PVE 扛不住的时候，就该上集群了。本文从 Corosync 集群搭建、共享存储配置、Live Migration 热迁移机制，到 HA 高可用策略，完整覆盖三节点 PVE 集群的落地全过程，附带故障模拟和踩坑实录。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-集群基础架构>1. 集群基础架构</a></li><li><a href=#2-三节点集群搭建>2. 三节点集群搭建</a><ol><li><a href=#21-前提条件>2.1 前提条件</a></li><li><a href=#22-创建集群>2.2 创建集群</a></li><li><a href=#23-其他节点加入>2.3 其他节点加入</a></li><li><a href=#24-验证集群状态>2.4 验证集群状态</a></li></ol></li><li><a href=#3-共享存储配置>3. 共享存储配置</a></li><li><a href=#4-live-migration-热迁移机制>4. Live Migration 热迁移机制</a><ol><li><a href=#41-pre-copy-迁移算法>4.1 Pre-Copy 迁移算法</a></li><li><a href=#42-影响迁移速度的关键因素>4.2 影响迁移速度的关键因素</a></li><li><a href=#43-迁移调优>4.3 迁移调优</a></li><li><a href=#44-执行热迁移>4.4 执行热迁移</a></li></ol></li><li><a href=#5-ha-高可用配置>5. HA 高可用配置</a><ol><li><a href=#51-ha-架构>5.1 HA 架构</a></li><li><a href=#52-配置-ha-组>5.2 配置 HA 组</a></li><li><a href=#53-设置-ha-资源>5.3 设置 HA 资源</a></li><li><a href=#54-cpu-类型兼容性>5.4 CPU 类型兼容性</a></li></ol></li><li><a href=#6-故障模拟与验证>6. 故障模拟与验证</a><ol><li><a href=#61-模拟节点宕机>6.1 模拟节点宕机</a></li><li><a href=#62-验证业务连续性>6.2 验证业务连续性</a></li></ol></li></ol><ol><li><a href=#7-踩坑记录>7. 踩坑记录</a><ol><li><a href=#-坑-1迁移失败--could-not-start-migration-tunnel>❌ 坑 1：迁移失败 — &ldquo;could not start migration tunnel&rdquo;</a></li><li><a href=#-坑-2双节点集群--nfs-存储关机维护时集群瘫痪>❌ 坑 2：双节点集群 + NFS 存储，关机维护时集群瘫痪</a></li><li><a href=#-坑-3ha-watchdog-在系统更新时误触发-fencing>❌ 坑 3：HA Watchdog 在系统更新时误触发 Fencing</a></li><li><a href=#-坑-4高内存脏化率的-vm-迁移永不收敛>❌ 坑 4：高内存脏化率的 VM 迁移永不收敛</a></li></ol></li><li><a href=#8-总结>8. 总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/pve-cluster-ha-guide/>Proxmox VE 集群与高可用实战：从零搭建三节点 HA 虚拟化平台</a></h2><h3 class=article-subtitle>当一台 PVE 扛不住的时候，就该上集群了。本文从 Corosync 集群搭建、共享存储配置、Live Migration 热迁移机制，到 HA 高可用策略，完整覆盖三节点 PVE 集群的落地全过程，附带故障模拟和踩坑实录。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 29, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 9 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>单机 PVE 能承载大部分 Homelab 需求——跑几个 LXC、十来台 VM，配上 PBS 定时备份，已经相当可靠。</p><p>但总有那么几个时刻让你意识到单机的天花板：</p><ul><li>需要<strong>滚动升级</strong> PVE 内核，业务却不能停</li><li>宿主机硬件维护（换风扇、加内存），所有 VM 被迫关机</li><li>某个节点宕机后，所有服务直到你手动恢复才恢复</li><li>想<strong>在线迁移</strong> VM 到另一台性能更强的机器上做负载均衡</li></ul><p>这就是 PVE 集群 + 高可用（HA）出场的时机。</p><p>本文以 <strong>PVE 8.x 三节点集群</strong>为例，从集群创建、共享存储、Live Migration 热迁移到 HA 故障自愈，完整覆盖生产级 Homelab 虚拟化平台的搭建流程。</p><hr><h2 id=1-集群基础架构>1. 集群基础架构</h2><p>PVE 集群的底层组件并不复杂，理解它们就能在故障时从容应对：</p><div class=table-wrapper><table><thead><tr><th>组件</th><th>作用</th></tr></thead><tbody><tr><td><strong>Corosync</strong></td><td>集群通信引擎（组播/UDP），心跳检测与消息广播</td></tr><tr><td><strong>pmxcfs</strong></td><td>Proxmox Cluster File System，FUSE 挂载于 <code>/etc/pve</code>，底层用 SQLite 同步集群配置</td></tr><tr><td><strong>votequorum</strong></td><td>投票仲裁模块，决定集群是否拥有法定人数</td></tr><tr><td><strong>pve-ha-manager</strong></td><td>高可用管理器，监控资源状态并触发故障恢复</td></tr><tr><td><strong>watchdog</strong></td><td>看门狗定时器，节点失联后自动重启以释放资源</td></tr></tbody></table></div><p><strong>关于 Quorum（仲裁）：</strong></p><p>Quorum 是防止 <strong>Split-Brain（脑裂）</strong> 的核心机制。当集群网络分裂时，只有拥有多数票的"半区"能继续提供服务，失去 quorum 的半区会将 pmxcfs 切换为<strong>只读模式</strong>并停止 VM。</p><ul><li>三节点集群：quorum = 2（需要≥2节点在线）</li><li>双节点集群：必须设置 <code>two_node: 1</code>，quorum 降为 1，但风险极高——单节点故障后集群直接不可用</li></ul><blockquote><p><strong>Homelab 建议：</strong> 至少 3 节点。双节点 + QDevice（第三方仲裁设备，如树莓派）也是可行方案，但管理复杂度显著增加。</p></blockquote><hr><h2 id=2-三节点集群搭建>2. 三节点集群搭建</h2><h3 id=21-前提条件>2.1 前提条件</h3><ul><li>三台安装了 PVE 8.x 的主机，版本一致</li><li>节点时间同步（NTP）</li><li>节点之间能通过 <strong>主机名</strong> 互相解析（推荐 <code>/etc/hosts</code>）</li><li>防火墙放行集群通信端口：UDP 5404/5405（Corosync）和 TCP 22（SSH）</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在每个节点上设置 hosts 解析</span>
+</span></span><span class=line><span class=cl>cat &gt;&gt; /etc/hosts <span class=s>&lt;&lt; &#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>192.168.1.10 pve1
+</span></span></span><span class=line><span class=cl><span class=s>192.168.1.11 pve2
+</span></span></span><span class=line><span class=cl><span class=s>192.168.1.12 pve3
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 确保 NTP 同步</span>
+</span></span><span class=line><span class=cl>apt install -y chrony
+</span></span><span class=line><span class=cl>systemctl <span class=nb>enable</span> --now chrony
+</span></span><span class=line><span class=cl>chronyc sources -v
+</span></span></code></pre></td></tr></table></div></div><h3 id=22-创建集群>2.2 创建集群</h3><p>在 <strong>第一个节点（pve1）</strong> 上执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvecm create homelab-cluster
+</span></span></code></pre></td></tr></table></div></div><p>成功后会看到集群已创建，<code>/etc/pve/</code> 目录自动变为集群文件系统。</p><h3 id=23-其他节点加入>2.3 其他节点加入</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在 pve2 上执行</span>
+</span></span><span class=line><span class=cl>pvecm add pve1
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 在 pve3 上执行</span>
+</span></span><span class=line><span class=cl>pvecm add pve1
+</span></span></code></pre></td></tr></table></div></div><h3 id=24-验证集群状态>2.4 验证集群状态</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvecm status
+</span></span><span class=line><span class=cl>pvecm nodes
+</span></span><span class=line><span class=cl>corosync-quorumtool -s
+</span></span></code></pre></td></tr></table></div></div><p>正常输出应显示三个节点都在线，quorum 为 2（3节点中需2票）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>Membership information
+</span></span><span class=line><span class=cl>-----------------------
+</span></span><span class=line><span class=cl>    Nodeid      Votes Name
+</span></span><span class=line><span class=cl>         1          1 pve1 (local)
+</span></span><span class=line><span class=cl>         2          1 pve2
+</span></span><span class=line><span class=cl>         3          1 pve3
+</span></span><span class=line><span class=cl>Quorum: 2 (expected: 2)
+</span></span></code></pre></td></tr></table></div></div><p>生成的 <code>corosync.conf</code> 位于 <code>/etc/pve/corosync.conf</code>，由 pmxcfs 自动同步到所有节点：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=na>logging {</span>
+</span></span><span class=line><span class=cl>  <span class=na>debug: off</span>
+</span></span><span class=line><span class=cl>  <span class=na>to_syslog: yes</span>
+</span></span><span class=line><span class=cl><span class=na>}</span>
+</span></span><span class=line><span class=cl><span class=na>nodelist {</span>
+</span></span><span class=line><span class=cl>  <span class=na>node {</span>
+</span></span><span class=line><span class=cl>    <span class=na>name: pve1</span>
+</span></span><span class=line><span class=cl>    <span class=na>nodeid: 1</span>
+</span></span><span class=line><span class=cl>    <span class=na>quorum_votes: 1</span>
+</span></span><span class=line><span class=cl>    <span class=na>ring0_addr: 192.168.1.10</span>
+</span></span><span class=line><span class=cl>  <span class=na>}</span>
+</span></span><span class=line><span class=cl>  <span class=na>node {</span>
+</span></span><span class=line><span class=cl>    <span class=na>name: pve2</span>
+</span></span><span class=line><span class=cl>    <span class=na>nodeid: 2</span>
+</span></span><span class=line><span class=cl>    <span class=na>quorum_votes: 1</span>
+</span></span><span class=line><span class=cl>    <span class=na>ring0_addr: 192.168.1.11</span>
+</span></span><span class=line><span class=cl>  <span class=na>}</span>
+</span></span><span class=line><span class=cl>  <span class=na>node {</span>
+</span></span><span class=line><span class=cl>    <span class=na>name: pve3</span>
+</span></span><span class=line><span class=cl>    <span class=na>nodeid: 3</span>
+</span></span><span class=line><span class=cl>    <span class=na>quorum_votes: 1</span>
+</span></span><span class=line><span class=cl>    <span class=na>ring0_addr: 192.168.1.12</span>
+</span></span><span class=line><span class=cl>  <span class=na>}</span>
+</span></span><span class=line><span class=cl><span class=na>}</span>
+</span></span><span class=line><span class=cl><span class=na>quorum {</span>
+</span></span><span class=line><span class=cl>  <span class=na>provider: corosync_votequorum</span>
+</span></span><span class=line><span class=cl><span class=na>}</span>
+</span></span><span class=line><span class=cl><span class=na>totem {</span>
+</span></span><span class=line><span class=cl>  <span class=na>cluster_name: homelab-cluster</span>
+</span></span><span class=line><span class=cl>  <span class=na>config_version: 1</span>
+</span></span><span class=line><span class=cl>  <span class=na>interface { ringnumber: 0 }</span>
+</span></span><span class=line><span class=cl>  <span class=na>ip_version: ipv4</span>
+</span></span><span class=line><span class=cl>  <span class=na>secauth: on</span>
+</span></span><span class=line><span class=cl>  <span class=na>transport: udpu</span>
+</span></span><span class=line><span class=cl>  <span class=na>version: 2</span>
+</span></span><span class=line><span class=cl><span class=na>}</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=3-共享存储配置>3. 共享存储配置</h2><p>集群的威力需要共享存储来释放。没有共享存储时，VM 磁盘只在本地，迁移时连数据一起搬——速度慢、占用网络带宽。有了共享存储，迁移只需传输内存状态，快如闪电。</p><p>Homelab 常见共享存储方案对比：</p><div class=table-wrapper><table><thead><tr><th>方案</th><th>性能</th><th>配置复杂度</th><th>成本</th><th>适用规模</th></tr></thead><tbody><tr><td><strong>NFS</strong></td><td>中</td><td>⭐ 低</td><td>免费</td><td>小型 Homelab</td></tr><tr><td><strong>Ceph</strong></td><td>高</td><td>⭐⭐⭐ 很高</td><td>免费（需三节点）</td><td>中型以上</td></tr><tr><td><strong>iSCSI + LVM</strong></td><td>高</td><td>⭐⭐ 中</td><td>免费</td><td>中型</td></tr><tr><td><strong>Starwind VSAN</strong></td><td>高</td><td>⭐⭐ 中</td><td>免费（2节点）</td><td>小型</td></tr></tbody></table></div><blockquote><p>注：PVE 已内置 Ceph 支持（<code>pveceph install</code>），3节点+万兆网络能跑出不错的性能。但 Ceph 配置维护复杂度较高，Homelab 入门推荐从 NFS 起步。</p></blockquote><p>这里以 <strong>NFS 共享存储</strong>为例（将一台 NAS 或任意节点作为 NFS Server）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在 NFS Server 上安装并配置</span>
+</span></span><span class=line><span class=cl>apt install -y nfs-kernel-server
+</span></span><span class=line><span class=cl>mkdir -p /srv/nfs/pve-share
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>cat &gt;&gt; /etc/exports <span class=s>&lt;&lt; &#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>/srv/nfs/pve-share 192.168.1.0/24(rw,sync,no_subtree_check,no_root_squash)
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>exportfs -ra
+</span></span></code></pre></td></tr></table></div></div><p>在 PVE 集群的任一节点的 Web UI 中：</p><p><strong>Datacenter → Storage → Add → NFS：</strong></p><ul><li>ID: <code>nfs-share</code></li><li>Server: NFS Server IP</li><li>Export: <code>/srv/nfs/pve-share</code></li><li>Content: 勾选 <code>VZDump backup</code>, <code>Container</code>, <code>Snippets</code>, <code>ISO images</code></li></ul><p>或者在 CLI 中执行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>pvesm add nfs nfs-share --server 192.168.1.20 --path /srv/nfs/pve-share --export /srv/nfs/pve-share --content iso,vztmpl,backup,snippets
+</span></span></code></pre></td></tr></table></div></div><p>存储添加后，集群中所有节点的 <code>/etc/pve/storage.cfg</code> 会自动同步——这就是 pmxcfs 的魅力。</p><hr><h2 id=4-live-migration-热迁移机制>4. Live Migration 热迁移机制</h2><p>热迁移（Live Migration）是 PVE 集群最令人舒适的特性之一。理解它的底层原理，有助于在遇到迁移失败时定位问题。</p><h3 id=41-pre-copy-迁移算法>4.1 Pre-Copy 迁移算法</h3><p>PVE 基于 QEMU/KVM 的 <strong>Pre-Copy</strong> 内存迁移算法，分为五个阶段：</p><ol><li><strong>初始同步：</strong> 将 VM 全量内存从源节点复制到目标节点</li><li><strong>脏页迭代：</strong> VM 持续运行产生的脏页（Dirty Pages）被反复追踪并重传</li><li><strong>收敛检测：</strong> 当脏页率低于传输率阈值，或达到最大迭代次数，进入停顿时段</li><li><strong>暂停与最终复制：</strong> 暂停 VM（Downtime），复制最后一批脏页 + CPU/设备状态</li><li><strong>切换执行：</strong> 在目标节点恢复 VM，源节点释放资源</li></ol><p>整个过程中，VM 感知到的停机窗口通常只有 <strong>20~200ms</strong>——一次网络 Ping 的时间。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>迁移进度 ≈ 全量内存 / 传输带宽 + (迭代轮数 × 脏页量 / 传输带宽)
+</span></span></code></pre></td></tr></table></div></div><h3 id=42-影响迁移速度的关键因素>4.2 影响迁移速度的关键因素</h3><div class=table-wrapper><table><thead><tr><th>因素</th><th>影响</th></tr></thead><tbody><tr><td><strong>内存大小</strong></td><td>256GB VM 比 4GB VM 迁移慢几十倍</td></tr><tr><td><strong>内存脏化速率</strong></td><td>数据库、缓存类 VM 脏页率高，可能导致永不收敛</td></tr><tr><td><strong>网络带宽</strong></td><td>推荐 10GbE 或专用迁移 VLAN</td></tr><tr><td><strong>加密开销</strong></td><td>默认 <code>secure</code> 模式加密传输，约消耗 20-30% 带宽</td></tr><tr><td><strong>存储类型</strong></td><td>共享存储只需传内存；本地存储需同时传磁盘</td></tr></tbody></table></div><h3 id=43-迁移调优>4.3 迁移调优</h3><p>在生产环境迁移前，建议先调优以下参数：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 修改 datacenter 默认迁移配置</span>
+</span></span><span class=line><span class=cl><span class=c1># 编辑 /etc/pve/datacenter.cfg，添加：</span>
+</span></span><span class=line><span class=cl>migration: <span class=nv>type</span><span class=o>=</span>insecure, <span class=nv>network</span><span class=o>=</span>10.0.0.0/24
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 说明：</span>
+</span></span><span class=line><span class=cl><span class=c1>#   insecure = 不加密（私有内网环境安全，速度提升明显）</span>
+</span></span><span class=line><span class=cl><span class=c1>#   network  = 使用专用迁移网络 CIDR</span>
+</span></span></code></pre></td></tr></table></div></div><p><strong>为指定 VM 设置迁移参数：</strong></p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 设置迁移网络（必须在 datacenter.cfg 的 migration network CIDR 范围内）</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>100</span> --migration_network 10.0.0.0/24
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 设置最大停机时间（默认 100ms，高脏页率 VM 可调大到 500ms）</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>100</span> --migrate_downtime <span class=m>500</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 限制迁移带宽（MB/s），避免占满业务带宽</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>100</span> --migration_speed <span class=m>500</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=44-执行热迁移>4.4 执行热迁移</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在线热迁移（需要共享存储）</span>
+</span></span><span class=line><span class=cl>qm migrate <span class=m>100</span> pve2 --online
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 观察迁移进度</span>
+</span></span><span class=line><span class=cl>watch <span class=s1>&#39;qm monitor 100 &lt;&lt;&lt; &#34;info migrate&#34; 2&gt;/dev/null || echo &#34;Migration finished&#34;&#39;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 带存储迁移（本地存储场景）</span>
+</span></span><span class=line><span class=cl>qm migrate <span class=m>100</span> pve2 --online --storage nfs-share
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>⚠️ <strong>注意：</strong> 迁移中的 VM 会短暂暂停（~100ms 左右），对延迟敏感的应用（如游戏服务器、实时音频）可能造成可感知的卡顿。建议在低峰期执行。</p></blockquote><hr><h2 id=5-ha-高可用配置>5. HA 高可用配置</h2><p>有了集群和共享存储，HA 高可用才能完整生效。HA 的核心逻辑很简单：<strong>检测到节点故障 → 在其他节点自动拉起 VM</strong>。</p><h3 id=51-ha-架构>5.1 HA 架构</h3><p>PVE 的 HA 栈由三部分组成：</p><ul><li><strong>CRM（Cluster Resource Manager）</strong>：集群资源管理器，运行在 master 节点，决策资源调度</li><li><strong>LRM（Local Resource Manager）</strong>：本地资源管理器，每个节点上运行，执行具体操作</li><li><strong>Watchdog</strong>：硬件/软件看门狗，节点故障后触发自动重启以释放资源（fencing）</li></ul><p>故障恢复流程：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>节点宕机 → CRM 检测到心跳丢失 → 等待 watchdog 超时（默认 60s）→
+</span></span><span class=line><span class=cl>节点被 fencing（重启）→ CRM 在其他节点启动受影响的 VM → 
+</span></span><span class=line><span class=cl>VM 状态变为 &#34;started&#34;，对外服务恢复
+</span></span></code></pre></td></tr></table></div></div><h3 id=52-配置-ha-组>5.2 配置 HA 组</h3><p>HA 组定义了 VM 可以在哪些节点上运行，以及优先级：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 创建 HA 组，节点按优先级排列</span>
+</span></span><span class=line><span class=cl>ha-manager groupadd prod-group <span class=se>\
+</span></span></span><span class=line><span class=cl>  --nodes <span class=s2>&#34;pve1:1,pve2:2,pve3:3&#34;</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --restricted <span class=m>1</span> <span class=se>\
+</span></span></span><span class=line><span class=cl>  --nofailback <span class=m>0</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 参数说明：</span>
+</span></span><span class=line><span class=cl><span class=c1>#   restricted: 1 = VM 只能在组内节点运行，不会跑到组外节点</span>
+</span></span><span class=line><span class=cl><span class=c1>#   nofailback: 0 = 故障节点恢复后，VM 自动回迁到优先级更高的节点</span>
+</span></span><span class=line><span class=cl><span class=c1>#              1 = 不自动回迁，保持当前运行位置</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=53-设置-ha-资源>5.3 设置 HA 资源</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 将 VM 加入 HA 管理</span>
+</span></span><span class=line><span class=cl>ha-manager <span class=nb>set</span> <span class=m>100</span> --group prod-group --state started
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看 HA 状态</span>
+</span></span><span class=line><span class=cl>ha-manager status
+</span></span><span class=line><span class=cl>ha-manager resources
+</span></span><span class=line><span class=cl>ha-manager resource-status
+</span></span></code></pre></td></tr></table></div></div><p>HA 的 <strong>state</strong> 有四个常见值：</p><div class=table-wrapper><table><thead><tr><th>State</th><th>含义</th></tr></thead><tbody><tr><td><code>started</code></td><td>VM 应始终运行，故障时自动在另一节点启动</td></tr><tr><td><code>stopped</code></td><td>VM 应保持停止</td></tr><tr><td><code>disabled</code></td><td>不被 HA 管理，手动控制</td></tr><tr><td><code>freeze</code></td><td>冻结，不自动迁移但保留资源定义</td></tr></tbody></table></div><h3 id=54-cpu-类型兼容性>5.4 CPU 类型兼容性</h3><p>HA 多节点之间必须确保 CPU 指令集兼容，否则迁移后的 VM 可能直接崩溃：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># ❌ 不推荐的迁移配置：使用 host 模式</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>100</span> --cpu host
+</span></span><span class=line><span class=cl><span class=c1># host 模式暴露全部 CPU 特性，如果两个节点 CPU 不同代，迁移后 Guest OS 可能遇到 SIGILL</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># ✅ 推荐的迁移配置：使用标准化 CPU 类型</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>100</span> --cpu x86-64-v2-AES
+</span></span><span class=line><span class=cl><span class=c1># x86-64-v2 对应约 Intel Haswell (2013) 及以上，AES 是硬件加速加密指令</span>
+</span></span><span class=line><span class=cl><span class=c1># 更保守的选择：kvm64（最兼容，但性能损失约 10-15%）</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p><strong>Homelab 实践：</strong> 如果所有节点 CPU 同代同型号，大胆用 <code>host</code> 模式获取最大性能。如果混合了不同代 CPU（如 i5-12500 和 N100），统一设置为 <code>x86-64-v2-AES</code> 是最优平衡。</p></blockquote><hr><h2 id=6-故障模拟与验证>6. 故障模拟与验证</h2><p>搭建完成后，一定要做故障模拟测试，否则高可用只是心理安慰。</p><h3 id=61-模拟节点宕机>6.1 模拟节点宕机</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在 pve1 上直接关机</span>
+</span></span><span class=line><span class=cl>pve1# poweroff
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 或者模拟网络断开（更真实的 Split-brain 测试）</span>
+</span></span><span class=line><span class=cl>pve1# iptables -A INPUT -s 192.168.1.0/24 -j DROP
+</span></span></code></pre></td></tr></table></div></div><p>在 Web UI 上观察：</p><ol><li>pve1 状态变为未知/离线</li><li>HA 资源状态变为 <code>stoped</code> 并等待 fencing</li><li>Watchdog 超时后（约 60 秒），CRM 在其他节点自动启动 VM</li></ol><p>查看 HA 日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>journalctl -u pve-ha-crm -f
+</span></span><span class=line><span class=cl>journalctl -u pve-ha-lrm -f
+</span></span></code></pre></td></tr></table></div></div><h3 id=62-验证业务连续性>6.2 验证业务连续性</h3><p>测试期间，从外部持续 Ping VM 的 IP 地址，观察断连持续时间：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在外部机器上</span>
+</span></span><span class=line><span class=cl>ping -D 192.168.1.100
+</span></span></code></pre></td></tr></table></div></div><p>正常 HA 切换的停机时间 = Watchdog 超时（60s）+ QEMU 启动时间（10-30s）= <strong>约 70-90 秒</strong>。这不是"零宕机"，但对大部分 Homelab 场景已经足够。</p><blockquote><p><strong>加速建议：</strong> 如果业务对中断容忍度较低，可以缩短 Watchdog 超时：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash></code></pre></td></tr></table></div></div></blockquote><h1 id=修改-watchdog-超时时间单位秒最小值-10>修改 watchdog 超时时间（单位：秒，最小值 10）</h1><p>echo 30 > /sys/devices/virtual/watchdog/watchdog0/timeout</p><h1 id=持久化在-etcsystemdsystemconf-中设置-runtimewatchdogsec30>持久化：在 /etc/systemd/system.conf 中设置 RuntimeWatchdogSec=30</h1><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>### 6.3 恢复节点后自动回迁
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>将离线节点重新上线后，如果 HA 组设置了 `nofailback: 0`，VM 会自动从 pve2/pve3 迁移回 pve1：
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>```bash
+</span></span><span class=line><span class=cl># 检查回迁是否正常
+</span></span><span class=line><span class=cl>ha-manager status
+</span></span><span class=line><span class=cl># 观察 VM 状态从 &#34;migrate&#34; → &#34;started&#34;
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=7-踩坑记录>7. 踩坑记录</h2><h3 id=-坑-1迁移失败--could-not-start-migration-tunnel>❌ 坑 1：迁移失败 — &ldquo;could not start migration tunnel&rdquo;</h3><p><strong>现象：</strong> 迁移进度卡在 0%，日志报 SSH 隧道建立失败。</p><p><strong>根因：</strong> SSH 主机密钥认证失败，或节点间无法通过主机名解析。</p><p><strong>解决：</strong></p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 检查节点之间的 SSH 连通性</span>
+</span></span><span class=line><span class=cl>ssh root@pve2 <span class=s2>&#34;hostname&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 检查 hosts 解析</span>
+</span></span><span class=line><span class=cl>getent hosts pve2
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 如果缺失，重新建立集群 SSH 互信</span>
+</span></span><span class=line><span class=cl>pvecm updatecerts --force
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-2双节点集群--nfs-存储关机维护时集群瘫痪>❌ 坑 2：双节点集群 + NFS 存储，关机维护时集群瘫痪</h3><p><strong>现象：</strong> 维护时关闭一个节点，剩余节点显示"no quorum"，所有 VM 停止。</p><p><strong>根因：</strong> 双节点集群 quorum = 2。一节点下线后只剩 1 票，失去 quorum。pmxcfs 变为只读，无法启动/迁移 VM。</p><p><strong>解决方案：</strong></p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 维护前执行，临时降低 quorum 预期</span>
+</span></span><span class=line><span class=cl>pvecm expected <span class=m>1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 维护结束后恢复</span>
+</span></span><span class=line><span class=cl>pvecm expected <span class=m>3</span>
+</span></span></code></pre></td></tr></table></div></div><p><strong>更好的方案：</strong> 直接升级到三节点，避免这个先天缺陷。</p><h3 id=-坑-3ha-watchdog-在系统更新时误触发-fencing>❌ 坑 3：HA Watchdog 在系统更新时误触发 Fencing</h3><p><strong>现象：</strong> 执行 <code>apt upgrade</code> 或重启 pve-ha-lrm 服务后，节点被 watchdog 重启。</p><p><strong>根因：</strong> HA 模式下 watchdog 持续运行，如果 pve-ha-lrm 停止响应（升级过程中短暂暂停），watchdog 判定节点失联并触发重启。</p><p><strong>解决：</strong> 维护操作前，先将 VM 移出 HA 管理：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 方法一：将 VM 从 HA 中临时移除</span>
+</span></span><span class=line><span class=cl>ha-manager <span class=nb>set</span> <span class=m>100</span> --state disabled
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 方法二：暂停 HA 服务</span>
+</span></span><span class=line><span class=cl>systemctl stop pve-ha-lrm
+</span></span><span class=line><span class=cl>systemctl stop pve-ha-crm
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 更新完成后恢复</span>
+</span></span><span class=line><span class=cl>systemctl start pve-ha-crm
+</span></span><span class=line><span class=cl>systemctl start pve-ha-lrm
+</span></span><span class=line><span class=cl>ha-manager <span class=nb>set</span> <span class=m>100</span> --state started
+</span></span></code></pre></td></tr></table></div></div><h3 id=-坑-4高内存脏化率的-vm-迁移永不收敛>❌ 坑 4：高内存脏化率的 VM 迁移永不收敛</h3><p><strong>现象：</strong> 迁移进度达到 90%+ 后反复回退，VM 无法完成迁移。</p><p><strong>根因：</strong> VM 内存写入速率超过了网络传输速率，脏页永远追不上。</p><p><strong>解决：</strong></p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 1. 增大允许的停机时间</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>100</span> --migrate_downtime <span class=m>2000</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 2. 尝试离线迁移（有停机时间但一定能完成）</span>
+</span></span><span class=line><span class=cl>qm migrate <span class=m>100</span> pve2
+</span></span><span class=line><span class=cl><span class=c1># 不加 --online 即为离线迁移，速度更快</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 3. 内存超分配场景下，适当限制 VM 的 balloon 上限</span>
+</span></span><span class=line><span class=cl>qm <span class=nb>set</span> <span class=m>100</span> --balloon <span class=m>16384</span> --shares <span class=m>8000</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=8-总结>8. 总结</h2><div class=table-wrapper><table><thead><tr><th>维度</th><th>结论</th></tr></thead><tbody><tr><td>✅ <strong>集群规模</strong></td><td>最少 3 节点，避免双节点的 quorum 缺陷</td></tr><tr><td>✅ <strong>共享存储</strong></td><td>NFS 入门，Ceph 进阶；共享存储是热迁移的关键前提</td></tr><tr><td>✅ <strong>迁移模式</strong></td><td>私有内网使用 <code>insecure</code> 模式，性能提升 30%+</td></tr><tr><td>✅ <strong>CPU 类型</strong></td><td>异构节点统一用 <code>x86-64-v2-AES</code>，同代可用 <code>host</code></td></tr><tr><td>✅ <strong>HA 策略</strong></td><td><code>restricted=1</code> 限制 VM 范围，<code>nofailback=0</code> 自动回迁</td></tr><tr><td>⚠️ <strong>维护流程</strong></td><td>维护前必须 <code>ha-manager set &lt;vmid> --state disabled</code></td></tr><tr><td>⚠️ <strong>定期演练</strong></td><td>每月拔一次网线测试 HA 切换，确保故障恢复路径走通</td></tr></tbody></table></div><p><strong>最后一条忠告：</strong> HA 保护的是硬件故障，不保护数据损坏。HA 不是备份的替代品。即使上了集群，PBS 定时备份依然不可少。集群 + 共享存储 + HA + PBS = Homelab 虚拟化平台的终极形态。</p><hr><p><em>有没有在 PVE 集群上踩过什么神奇的坑？欢迎在评论区分享你的经历。</em></p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

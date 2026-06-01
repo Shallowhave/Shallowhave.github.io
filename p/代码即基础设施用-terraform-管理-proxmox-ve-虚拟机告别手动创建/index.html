@@ -1,0 +1,458 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="在 Homelab 中引入 Terraform 管理 Proxmox VE：从安装配置、Provider 认证、虚拟机声明式定义到 Cloud-Init 注入、批量部署与 State 管理，一套 HCL 模板跑通 VM 全生命周期，附踩坑实录与最佳实践。"><title>代码即基础设施：用 Terraform 管理 Proxmox VE 虚拟机，告别手动创建</title><link rel=canonical href=https://shallowhave.github.io/p/%E4%BB%A3%E7%A0%81%E5%8D%B3%E5%9F%BA%E7%A1%80%E8%AE%BE%E6%96%BD%E7%94%A8-terraform-%E7%AE%A1%E7%90%86-proxmox-ve-%E8%99%9A%E6%8B%9F%E6%9C%BA%E5%91%8A%E5%88%AB%E6%89%8B%E5%8A%A8%E5%88%9B%E5%BB%BA/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="代码即基础设施：用 Terraform 管理 Proxmox VE 虚拟机，告别手动创建"><meta property='og:description' content="在 Homelab 中引入 Terraform 管理 Proxmox VE：从安装配置、Provider 认证、虚拟机声明式定义到 Cloud-Init 注入、批量部署与 State 管理，一套 HCL 模板跑通 VM 全生命周期，附踩坑实录与最佳实践。"><meta property='og:url' content='https://shallowhave.github.io/p/%E4%BB%A3%E7%A0%81%E5%8D%B3%E5%9F%BA%E7%A1%80%E8%AE%BE%E6%96%BD%E7%94%A8-terraform-%E7%AE%A1%E7%90%86-proxmox-ve-%E8%99%9A%E6%8B%9F%E6%9C%BA%E5%91%8A%E5%88%AB%E6%89%8B%E5%8A%A8%E5%88%9B%E5%BB%BA/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-30T09:20:46+08:00'><meta property='article:modified_time' content='2026-05-30T09:20:46+08:00'><meta name=twitter:title content="代码即基础设施：用 Terraform 管理 Proxmox VE 虚拟机，告别手动创建"><meta name=twitter:description content="在 Homelab 中引入 Terraform 管理 Proxmox VE：从安装配置、Provider 认证、虚拟机声明式定义到 Cloud-Init 注入、批量部署与 State 管理，一套 HCL 模板跑通 VM 全生命周期，附踩坑实录与最佳实践。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#为什么-homelab-也需要-iac>为什么 Homelab 也需要 IaC？</a></li><li><a href=#1-环境准备>1. 环境准备</a><ol><li><a href=#11-安装-terraform>1.1 安装 Terraform</a></li><li><a href=#12-pve-api-token-创建>1.2 PVE API Token 创建</a></li></ol></li><li><a href=#2-provider-配置与项目初始化>2. Provider 配置与项目初始化</a><ol><li><a href=#maintf>main.tf</a></li><li><a href=#variablestf>variables.tf</a></li><li><a href=#terraformtfvars>terraform.tfvars</a></li><li><a href=#terraform-init>terraform init</a></li></ol></li><li><a href=#3-声明式定义虚拟机从模板克隆-ubuntu-server>3. 声明式定义虚拟机：从模板克隆 Ubuntu Server</a></li><li><a href=#4-进阶多台虚拟机批量部署>4. 进阶：多台虚拟机批量部署</a></li><li><a href=#5-terraform-state怎么管>5. Terraform State：怎么管？</a><ol><li><a href=#方案-agit-管理最简单>方案 A：Git 管理（最简单）</a></li><li><a href=#方案-bs3-兼容存储推荐>方案 B：S3 兼容存储（推荐）</a></li></ol></li><li><a href=#6-生命周期操作>6. 生命周期操作</a><ol><li><a href=#61-变配>6.1 变配</a></li><li><a href=#62-防止误删除>6.2 防止误删除</a></li><li><a href=#63-强制重建>6.3 强制重建</a></li></ol></li><li><a href=#7-完整项目结构>7. 完整项目结构</a></li><li><a href=#8-常见踩坑与排障>8. 常见踩坑与排障</a></li><li><a href=#9-总结>9. 总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/%E4%BB%A3%E7%A0%81%E5%8D%B3%E5%9F%BA%E7%A1%80%E8%AE%BE%E6%96%BD%E7%94%A8-terraform-%E7%AE%A1%E7%90%86-proxmox-ve-%E8%99%9A%E6%8B%9F%E6%9C%BA%E5%91%8A%E5%88%AB%E6%89%8B%E5%8A%A8%E5%88%9B%E5%BB%BA/>代码即基础设施：用 Terraform 管理 Proxmox VE 虚拟机，告别手动创建</a></h2><h3 class=article-subtitle>在 Homelab 中引入 Terraform 管理 Proxmox VE：从安装配置、Provider 认证、虚拟机声明式定义到 Cloud-Init 注入、批量部署与 State 管理，一套 HCL 模板跑通 VM 全生命周期，附踩坑实录与最佳实践。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 30, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 7 分钟</time></div></footer></div></header><section class=article-content><h2 id=为什么-homelab-也需要-iac>为什么 Homelab 也需要 IaC？</h2><p>用 PVE Web UI 创建几台虚拟机不算麻烦——但是：</p><ul><li>重装宿主机后要重新点十多遍鼠标，每台 VM 的资源规格、网络配置全得再来一次</li><li>想复制一套「测试环境」到另一台 PVE，靠手记配置，漏一个 VLAN 标签就要排查半天</li><li>团队成员（或多节点 Homelab 合伙人）各自创建 VM，磁盘格式、桥接网卡、CPU 类型从来对不上</li><li>没有变更历史——谁什么时候改了哪台 VM 的配置，无迹可寻</li></ul><p>这些问题在 PVE Cluster 场景下尤其致命。<strong>Terraform 的答案是：把基础设施当作代码来管理。</strong> 一份 <code>.tf</code> 文件就是你的虚拟机「菜单」——可版本控制、可复用、可审计。</p><p>本文会用一套完整的 Homelab 案例，带你从零上手 Terraform + Proxmox VE。</p><hr><h2 id=1-环境准备>1. 环境准备</h2><h3 id=11-安装-terraform>1.1 安装 Terraform</h3><p>PVE 宿主机或 Homelab 里的任意 Linux 机器都可以作为 Terraform 控制节点。推荐放在管理 VM 或 Docker 宿主机上。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 以 Linux AMD64 为例，安装 Terraform 1.10.x</span>
+</span></span><span class=line><span class=cl>wget https://releases.hashicorp.com/terraform/1.10.5/terraform_1.10.5_linux_amd64.zip
+</span></span><span class=line><span class=cl>unzip terraform_1.10.5_linux_amd64.zip
+</span></span><span class=line><span class=cl>sudo mv terraform /usr/local/bin/
+</span></span><span class=line><span class=cl>terraform --version
+</span></span><span class=line><span class=cl><span class=c1># 预期输出：Terraform v1.10.5</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果 Homelab 网络不便直连 HashiCorp 仓库，也可以从清华镜像站获取：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>wget https://mirrors.tuna.tsinghua.edu.cn/hashicorp/terraform/1.10.5/terraform_1.10.5_linux_amd64.zip
+</span></span></code></pre></td></tr></table></div></div><h3 id=12-pve-api-token-创建>1.2 PVE API Token 创建</h3><p>Terraform 通过 PVE API 通信，需要创建一个专用的 API Token（比直接使用 root 密码更安全）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 在 PVE 宿主机上执行</span>
+</span></span><span class=line><span class=cl>pveum user add terraform@pve
+</span></span><span class=line><span class=cl>pveum role add TerraformProv -privs <span class=s2>&#34;VM.Allocate VM.Clone VM.Config.Disk VM.Config.CPU VM.Config.Memory VM.Config.Network VM.Config.Options VM.Monitor VM.Audit VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit&#34;</span>
+</span></span><span class=line><span class=cl>pveum acl modify / -user terraform@pve -role TerraformProv
+</span></span><span class=line><span class=cl>pveum user token add terraform@pve token1 --privsep<span class=o>=</span><span class=nb>false</span>
+</span></span></code></pre></td></tr></table></div></div><p>执行后会输出类似：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>┌──────────────┬──────────────────────────────────────┐
+</span></span><span class=line><span class=cl>│ key          │ value                                │
+</span></span><span class=line><span class=cl>╞══════════════╪══════════════════════════════════════╡
+</span></span><span class=line><span class=cl>│ full-tokenid │ terraform@pve!token1                 │
+</span></span><span class=line><span class=cl>├──────────────┼──────────────────────────────────────┤
+</span></span><span class=line><span class=cl>│ value        │ a1b2c3d4-e5f6-7890-abcd-ef1234567890 │
+</span></span><span class=line><span class=cl>└──────────────┴──────────────────────────────────────┘
+</span></span></code></pre></td></tr></table></div></div><p><strong>务必保存 token value</strong>，Terraform Provider 配置需要它，且 PVE Web UI 不会二次显示。</p><blockquote><p><strong>踩坑</strong>：<code>--privsep=false</code> 如果不加，Token 默认是权限分离模式，在 Provider 中无法正常认证，会报 <code>401 Authentication failure</code>。如果已经创建了带权限分离的 Token，可以在 PVE Web UI → Permissions → API Tokens 中修改。</p></blockquote><hr><h2 id=2-provider-配置与项目初始化>2. Provider 配置与项目初始化</h2><p>创建项目目录并编写 Terraform 配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir ~/terraform-pve <span class=o>&amp;&amp;</span> <span class=nb>cd</span> ~/terraform-pve
+</span></span></code></pre></td></tr></table></div></div><h3 id=maintf>main.tf</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=k>terraform</span> {
+</span></span><span class=line><span class=cl><span class=n>  required_version</span> <span class=o>=</span><span class=n> &#34;&gt;</span><span class=o>=</span> <span class=m>1</span><span class=p>.</span><span class=m>6</span><span class=err>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=k>required_providers</span> {
+</span></span><span class=line><span class=cl><span class=n>    proxmox</span> <span class=o>=</span> {
+</span></span><span class=line><span class=cl><span class=n>      source</span>  <span class=o>=</span> <span class=s2>&#34;bpg/proxmox&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>      version</span> <span class=o>=</span><span class=n> &#34;&gt;</span><span class=o>=</span> <span class=m>0</span><span class=p>.</span><span class=m>66</span><span class=p>.</span><span class=m>0</span><span class=err>&#34;</span>
+</span></span><span class=line><span class=cl>    }
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>provider</span> <span class=s2>&#34;proxmox&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  endpoint</span>  <span class=o>=</span> <span class=k>var</span><span class=p>.</span><span class=k>pve_endpoint</span><span class=c1>      # 如 https://192.168.1.10:8006/
+</span></span></span><span class=line><span class=cl><span class=n>  api_token</span> <span class=o>=</span> <span class=k>var</span><span class=p>.</span><span class=k>pve_api_token</span><span class=c1>
+</span></span></span><span class=line><span class=cl><span class=c1>
+</span></span></span><span class=line><span class=cl><span class=c1>  # PVE 默认使用自签名证书，需要跳过校验
+</span></span></span><span class=line><span class=cl><span class=n>  insecure</span>  <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>ssh</span> {
+</span></span><span class=line><span class=cl><span class=n>    agent</span>    <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl><span class=n>    username</span> <span class=o>=</span> <span class=s2>&#34;root&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div><h3 id=variablestf>variables.tf</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=k>variable</span> <span class=s2>&#34;pve_endpoint&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  description</span> <span class=o>=</span> <span class=s2>&#34;Proxmox VE API endpoint&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>  type</span>        <span class=o>=</span> <span class=k>string</span>
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>variable</span> <span class=s2>&#34;pve_api_token&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  description</span> <span class=o>=</span> <span class=s2>&#34;Proxmox VE API token&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>  type</span>        <span class=o>=</span> <span class=k>string</span>
+</span></span><span class=line><span class=cl><span class=n>  sensitive</span>   <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div><h3 id=terraformtfvars>terraform.tfvars</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=n>pve_endpoint</span>  <span class=o>=</span> <span class=s2>&#34;https://192.168.1.10:8006/&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>pve_api_token</span> <span class=o>=</span><span class=n> &#34;terraform@pve!token1</span><span class=o>=</span><span class=k>a1b2c3d4</span><span class=err>-</span><span class=k>e5f6</span><span class=err>-</span><span class=m>7890</span><span class=err>-</span><span class=k>abcd</span><span class=err>-</span><span class=k>ef1234567890</span><span class=err>&#34;</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p><strong>安全提示</strong>：<code>terraform.tfvars</code> 包含 API Token——<strong>不要提交到 Git</strong>。将 <code>terraform.tfvars</code> 加入 <code>.gitignore</code>，改为创建 <code>terraform.tfvars.example</code> 给团队参考。</p></blockquote><h3 id=terraform-init>terraform init</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>terraform init
+</span></span></code></pre></td></tr></table></div></div><p>正常输出会显示下载 bpg/proxmox Provider，并初始化后端。</p><hr><h2 id=3-声明式定义虚拟机从模板克隆-ubuntu-server>3. 声明式定义虚拟机：从模板克隆 Ubuntu Server</h2><p>以下配置基于已准备好的 Cloud-Init Ubuntu 24.04 模板（假设模板 ID 为 9000），Terraform 会自动克隆并注入配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span><span class=lnt>54
+</span><span class=lnt>55
+</span><span class=lnt>56
+</span><span class=lnt>57
+</span><span class=lnt>58
+</span><span class=lnt>59
+</span><span class=lnt>60
+</span><span class=lnt>61
+</span><span class=lnt>62
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=c1># ubuntu-vm.tf
+</span></span></span><span class=line><span class=cl><span class=k>resource</span> <span class=s2>&#34;proxmox_virtual_environment_vm&#34; &#34;ubuntu_dev&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  node_name</span> <span class=o>=</span> <span class=s2>&#34;pve1&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>  vm_id</span>     <span class=o>=</span> <span class=m>1001</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>clone</span> {
+</span></span><span class=line><span class=cl><span class=n>    vm_id</span> <span class=o>=</span> <span class=m>9000</span>
+</span></span><span class=line><span class=cl><span class=n>    full</span>  <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>agent</span> {
+</span></span><span class=line><span class=cl><span class=n>    enabled</span> <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>cpu</span> {
+</span></span><span class=line><span class=cl><span class=n>    cores</span>   <span class=o>=</span> <span class=m>2</span>
+</span></span><span class=line><span class=cl><span class=n>    sockets</span> <span class=o>=</span> <span class=m>1</span>
+</span></span><span class=line><span class=cl><span class=n>    type</span>    <span class=o>=</span> <span class=s2>&#34;host&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>memory</span> {
+</span></span><span class=line><span class=cl><span class=n>    dedicated</span> <span class=o>=</span> <span class=m>4096</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>disk</span> {
+</span></span><span class=line><span class=cl><span class=n>    datastore_id</span> <span class=o>=</span> <span class=s2>&#34;local-zfs&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    size</span>         <span class=o>=</span> <span class=m>40</span>
+</span></span><span class=line><span class=cl><span class=n>    interface</span>    <span class=o>=</span> <span class=s2>&#34;virtio0&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    discard</span>      <span class=o>=</span> <span class=s2>&#34;on&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>network_device</span> {
+</span></span><span class=line><span class=cl><span class=n>    bridge</span> <span class=o>=</span> <span class=s2>&#34;vmbr0&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    model</span>  <span class=o>=</span> <span class=s2>&#34;virtio&#34;</span>
+</span></span><span class=line><span class=cl>  }<span class=c1>
+</span></span></span><span class=line><span class=cl><span class=c1>
+</span></span></span><span class=line><span class=cl><span class=c1>  # Cloud-Init 配置
+</span></span></span><span class=line><span class=cl>  <span class=k>initialization</span> {
+</span></span><span class=line><span class=cl>    <span class=k>ip_config</span> {
+</span></span><span class=line><span class=cl>      <span class=k>ipv4</span> {
+</span></span><span class=line><span class=cl><span class=n>        address</span> <span class=o>=</span> <span class=s2>&#34;192.168.1.101/24&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>        gateway</span> <span class=o>=</span> <span class=s2>&#34;192.168.1.1&#34;</span>
+</span></span><span class=line><span class=cl>      }
+</span></span><span class=line><span class=cl>    }
+</span></span><span class=line><span class=cl>    <span class=k>dns</span> {
+</span></span><span class=line><span class=cl><span class=n>      servers</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;192.168.1.2&#34;, &#34;1.1.1.1&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>    }
+</span></span><span class=line><span class=cl>    <span class=k>user_account</span> {
+</span></span><span class=line><span class=cl><span class=n>      username</span> <span class=o>=</span> <span class=s2>&#34;deployer&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>      password</span> <span class=o>=</span> <span class=k>random_password</span><span class=p>.</span><span class=k>vm_password</span><span class=p>.</span><span class=k>result</span>
+</span></span><span class=line><span class=cl><span class=n>      keys</span>     <span class=o>=</span> <span class=p>[</span>
+</span></span><span class=line><span class=cl>        <span class=k>file</span><span class=p>(</span><span class=s2>&#34;~/.ssh/id_ed25519.pub&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>      <span class=p>]</span>
+</span></span><span class=line><span class=cl>    }
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>operating_system</span> {
+</span></span><span class=line><span class=cl><span class=n>    type</span> <span class=o>=</span> <span class=s2>&#34;l26&#34;</span><span class=c1>  # Linux 2.6+
+</span></span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>  tags</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;ubuntu&#34;, &#34;dev&#34;, &#34;homelab&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>用 <code>random_password</code> 资源生成随机密码，避免硬编码：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=k>resource</span> <span class=s2>&#34;random_password&#34; &#34;vm_password&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  length</span>  <span class=o>=</span> <span class=m>24</span>
+</span></span><span class=line><span class=cl><span class=n>  special</span> <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div></blockquote><p>执行一下看看效果：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>terraform plan      <span class=c1># 预览变更——「纸上谈兵」确认无误</span>
+</span></span><span class=line><span class=cl>terraform apply     <span class=c1># 执行创建，输入 yes 确认</span>
+</span></span></code></pre></td></tr></table></div></div><p>大约 30–60 秒后，Terraform 会显示 Apply 完成：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
+</span></span></code></pre></td></tr></table></div></div><p>登录 PVE Web UI，虚拟机 1001 已创建并开机，IP 为 <code>192.168.1.101</code>，SSH 密钥已注入——全程无需人工干预。</p><hr><h2 id=4-进阶多台虚拟机批量部署>4. 进阶：多台虚拟机批量部署</h2><p>有了 Terraform，批量部署变得极其简单。用 <code>count</code> 循环即可：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=c1># k3s-vms.tf
+</span></span></span><span class=line><span class=cl><span class=k>resource</span> <span class=s2>&#34;proxmox_virtual_environment_vm&#34; &#34;k3s_workers&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>  count</span>     <span class=o>=</span> <span class=m>3</span>
+</span></span><span class=line><span class=cl><span class=n>  node_name</span> <span class=o>=</span> <span class=s2>&#34;pve1&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>  vm_id</span>     <span class=o>=</span> <span class=m>1010</span> <span class=err>+</span> <span class=k>count</span><span class=p>.</span><span class=k>index</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>clone</span> {
+</span></span><span class=line><span class=cl><span class=n>    vm_id</span> <span class=o>=</span> <span class=m>9000</span>
+</span></span><span class=line><span class=cl><span class=n>    full</span>  <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>  name</span> <span class=o>=</span> <span class=s2>&#34;k3s-worker-${count.index + 1}&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>  agent { enabled</span> <span class=o>=</span> <span class=kt>true</span> }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>cpu</span> {
+</span></span><span class=line><span class=cl><span class=n>    cores</span> <span class=o>=</span> <span class=m>2</span>
+</span></span><span class=line><span class=cl><span class=n>    type</span>  <span class=o>=</span> <span class=s2>&#34;host&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>memory</span> {
+</span></span><span class=line><span class=cl><span class=n>    dedicated</span> <span class=o>=</span> <span class=m>4096</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>disk</span> {
+</span></span><span class=line><span class=cl><span class=n>    datastore_id</span> <span class=o>=</span> <span class=s2>&#34;local-zfs&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    size</span>         <span class=o>=</span> <span class=m>30</span>
+</span></span><span class=line><span class=cl><span class=n>    interface</span>    <span class=o>=</span> <span class=s2>&#34;virtio0&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>network_device</span> {
+</span></span><span class=line><span class=cl><span class=n>    bridge</span> <span class=o>=</span> <span class=s2>&#34;vmbr0&#34;</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>initialization</span> {
+</span></span><span class=line><span class=cl>    <span class=k>ip_config</span> {
+</span></span><span class=line><span class=cl>      <span class=k>ipv4</span> {
+</span></span><span class=line><span class=cl><span class=n>        address</span> <span class=o>=</span> <span class=s2>&#34;192.168.1.12${count.index + 1}/24&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>        gateway</span> <span class=o>=</span> <span class=s2>&#34;192.168.1.1&#34;</span>
+</span></span><span class=line><span class=cl>      }
+</span></span><span class=line><span class=cl>    }
+</span></span><span class=line><span class=cl>    <span class=k>user_account</span> {
+</span></span><span class=line><span class=cl><span class=n>      username</span> <span class=o>=</span> <span class=s2>&#34;deployer&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>      keys</span>     <span class=o>=</span> <span class=p>[</span><span class=k>file</span><span class=p>(</span><span class=s2>&#34;~/.ssh/id_ed25519.pub&#34;</span><span class=p>)]</span>
+</span></span><span class=line><span class=cl>    }
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>  tags</span> <span class=o>=</span> <span class=p>[</span><span class=s2>&#34;k3s&#34;, &#34;worker&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div><p>执行 <code>terraform plan</code> 看看效果：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>  # proxmox_virtual_environment_vm.k3s_workers[0] will be created
+</span></span><span class=line><span class=cl>  # proxmox_virtual_environment_vm.k3s_workers[1] will be created
+</span></span><span class=line><span class=cl>  # proxmox_virtual_environment_vm.k3s_workers[2] will be created
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>Plan: 3 to add, 0 to change, 0 to destroy.
+</span></span></code></pre></td></tr></table></div></div><p>一条 <code>terraform apply</code>，三台 K3s Worker 节点规格一致、IP 连贯、SSH 密钥统一——交给自动化，比手动创建省 90% 的时间。</p><blockquote><p><strong>踩坑</strong>：VM ID 不能重复。如果 PVE 上已有手动创建的 ID 1001，Terraform 会报 <code>vm ID already exists</code>。建议手动管理 ID 段：Terraform 管理的 VM 统一使用 1000–1999 段，手工创建的 VM 用 2000+ 段。</p></blockquote><hr><h2 id=5-terraform-state怎么管>5. Terraform State：怎么管？</h2><p>Terraform 使用 State 文件记录当前资源状态。默认是本地文件 <code>terraform.tfstate</code>。</p><p><strong>本地 State 的风险</strong>：如果两台机器分别执行 <code>apply</code>，State 不一致会导致变更混乱。对于 Homelab，有两个常用方案：</p><h3 id=方案-agit-管理最简单>方案 A：Git 管理（最简单）</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 将 State 加入 Git 跟踪</span>
+</span></span><span class=line><span class=cl><span class=nb>echo</span> <span class=s2>&#34;terraform.tfvars&#34;</span> &gt;&gt; .gitignore
+</span></span><span class=line><span class=cl>git add .
+</span></span><span class=line><span class=cl>git commit -m <span class=s2>&#34;init: terraform pve infrastructure&#34;</span>
+</span></span></code></pre></td></tr></table></div></div><p>缺点是多人协作时容易冲突，但单人 Homelab 完全够用。</p><h3 id=方案-bs3-兼容存储推荐>方案 B：S3 兼容存储（推荐）</h3><p>如果有 MinIO 或 NAS 提供的 S3 服务：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=c1># backend.tf
+</span></span></span><span class=line><span class=cl><span class=k>terraform</span> {
+</span></span><span class=line><span class=cl>  <span class=k>backend</span> <span class=s2>&#34;s3&#34;</span> {
+</span></span><span class=line><span class=cl><span class=n>    bucket</span>                      <span class=o>=</span> <span class=s2>&#34;terraform-state&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    key</span>                         <span class=o>=</span> <span class=s2>&#34;pve/terraform.tfstate&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    region</span>                      <span class=o>=</span> <span class=s2>&#34;us-east-1&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    endpoint</span>                    <span class=o>=</span> <span class=s2>&#34;https://minio.homelab.local:9000&#34;</span>
+</span></span><span class=line><span class=cl><span class=n>    skip_region_validation</span>      <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl><span class=n>    skip_credentials_validation</span> <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl><span class=n>    skip_requesting_account_id</span>  <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl><span class=n>    skip_s3_checksum</span>            <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl><span class=n>    use_path_style</span>              <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div><p>切换后端后执行迁移：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>terraform init -migrate-state
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=6-生命周期操作>6. 生命周期操作</h2><h3 id=61-变配>6.1 变配</h3><p>想从 2 核 4G 升到 4 核 8G？改一行 HCL，执行 <code>terraform apply</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=k>cpu</span> {
+</span></span><span class=line><span class=cl><span class=n>  cores</span> <span class=o>=</span> <span class=m>4</span><span class=c1>  # 原来是 2
+</span></span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl><span class=k>memory</span> {
+</span></span><span class=line><span class=cl><span class=n>  dedicated</span> <span class=o>=</span> <span class=m>8192</span><span class=c1>  # 原来是 4096
+</span></span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div><p>CPU 在 <code>type = "host"</code> 时支持热添加，内存建议关机后再变配。</p><h3 id=62-防止误删除>6.2 防止误删除</h3><p>核心 VM（如 DNS 服务器、监控主机）可以加保护锁：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-hcl data-lang=hcl><span class=line><span class=cl><span class=k>resource</span> <span class=s2>&#34;proxmox_virtual_environment_vm&#34; &#34;infra_dns&#34;</span> {
+</span></span><span class=line><span class=cl>  <span class=k>lifecycle</span> {
+</span></span><span class=line><span class=cl><span class=n>    prevent_destroy</span> <span class=o>=</span> <span class=kt>true</span>
+</span></span><span class=line><span class=cl>  }
+</span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div><p>这样即便执行 <code>terraform destroy</code> 也不会删除这台 VM。</p><h3 id=63-强制重建>6.3 强制重建</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>terraform taint proxmox_virtual_environment_vm.ubuntu_dev
+</span></span><span class=line><span class=cl>terraform apply
+</span></span></code></pre></td></tr></table></div></div><p>某些属性（如 <code>datastore_id</code>）修改后需要重建 VM，Terraform 会在 <code>plan</code> 中标注 <code>forces replacement</code>。</p><hr><h2 id=7-完整项目结构>7. 完整项目结构</h2><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=n>terraform</span><span class=o>-</span><span class=n>pve</span><span class=o>/</span>
+</span></span><span class=line><span class=cl><span class=err>├──</span> <span class=n>main</span><span class=o>.</span><span class=n>tf</span>              <span class=c1># Provider + Terraform 配置</span>
+</span></span><span class=line><span class=cl><span class=err>├──</span> <span class=n>variables</span><span class=o>.</span><span class=n>tf</span>         <span class=c1># 变量声明</span>
+</span></span><span class=line><span class=cl><span class=err>├──</span> <span class=n>terraform</span><span class=o>.</span><span class=n>tfvars</span>     <span class=c1># 实际变量值（.gitignore）</span>
+</span></span><span class=line><span class=cl><span class=err>├──</span> <span class=n>outputs</span><span class=o>.</span><span class=n>tf</span>           <span class=c1># 输出 VM IP、ID 等信息</span>
+</span></span><span class=line><span class=cl><span class=err>├──</span> <span class=n>ubuntu</span><span class=o>-</span><span class=n>vm</span><span class=o>.</span><span class=n>tf</span>         <span class=c1># Ubuntu 开发机</span>
+</span></span><span class=line><span class=cl><span class=err>├──</span> <span class=n>k3s</span><span class=o>-</span><span class=n>vms</span><span class=o>.</span><span class=n>tf</span>           <span class=c1># K3s 集群节点</span>
+</span></span><span class=line><span class=cl><span class=err>├──</span> <span class=o>.</span><span class=n>gitignore</span>
+</span></span><span class=line><span class=cl><span class=err>└──</span> <span class=n>README</span><span class=o>.</span><span class=n>md</span>
+</span></span></code></pre></td></tr></table></div></div><p>建议进一步用 Git 分支管理不同环境（main → prod，dev → staging），配合 Git 标签做发布管理。</p><hr><h2 id=8-常见踩坑与排障>8. 常见踩坑与排障</h2><div class=table-wrapper><table><thead><tr><th>问题</th><th>现象</th><th>解决方案</th></tr></thead><tbody><tr><td>API 认证失败</td><td><code>401 Authentication failure</code></td><td>Token 默认开启权限分离，重建时加 <code>--privsep=false</code></td></tr><tr><td>VM ID 冲突</td><td><code>vm ID 1001 already exists</code></td><td>手动规划 ID 段，Terraform 用 1000–1999 段</td></tr><tr><td>Cloud-Init 未生效</td><td>VM 启动后 IP 不对或 SSH 连不上</td><td>确认模板已安装 <code>qemu-guest-agent</code> 和 <code>cloud-init</code></td></tr><tr><td>State 锁定</td><td><code>Error acquiring state lock</code></td><td>S3 后端时删除 <code>terraform-state</code> bucket 中的 lock 文件</td></tr><tr><td>网络不通</td><td>克隆后 VM 无法访问</td><td>检查模板的 <code>/etc/network/interfaces</code> 和 Cloud-Init ip_config 是否冲突</td></tr><tr><td>Provider 版本</td><td><code>Invalid provider registry host</code></td><td>Terraform ≥ 1.6，bpg/proxmox ≥ 0.66</td></tr><tr><td>SSH Agent 失效</td><td><code>ssh: handshake failed</code></td><td>确认 <code>ssh-add -l</code> 有密钥，且已添加到 PVE 主机的 <code>~/.ssh/authorized_keys</code></td></tr></tbody></table></div><hr><h2 id=9-总结>9. 总结</h2><p>把 Terraform 引入 Homelab 带来的核心收益：</p><ol><li><strong>可复现</strong>——重装 PVE 后一条 <code>terraform apply</code> 恢复所有 VM</li><li><strong>可审计</strong>——<code>git diff</code> 一眼看清谁改了什么配置</li><li><strong>可批量</strong>——<code>count</code> 循环一次建 N 台机器，规格、配置完全一致</li><li><strong>可销毁</strong>——测试环境用完 <code>terraform destroy</code> 一键清理</li></ol><p>但这只是 IaC 的起点。进阶方向：</p><ul><li><strong>Packer + Cloud-Init</strong>：自动化制作模板镜像，彻底告别手动制作模板</li><li><strong>Terraform Workspace</strong>：多个 Homelab 环境（dev / staging / prod）的 State 隔离</li><li><strong>GitOps</strong>：Git Push → CI pipeline → <code>terraform apply</code> 全自动化</li><li><strong>Terragrunt</strong>：减少代码重复，管理多模块依赖</li></ul><p>如果你的 PVE 上已经有 5 台以上的 VM，或者规划过重装宿主机后不想再手动配置一遍——是时候让 Terraform 接管了。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

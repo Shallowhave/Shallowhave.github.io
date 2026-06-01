@@ -1,0 +1,330 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="用 Caddy 和 Cloudflare DNS Challenge 为不暴露到公网的 Homelab 服务签发 Let's Encrypt 泛域名证书，包含 Docker Compose、Caddyfile、API Token 权限、反代配置和常见踩坑。"><title>Caddy + Cloudflare DNS Challenge：给 Homelab 内网服务自动签发 HTTPS 证书</title><link rel=canonical href=https://shallowhave.github.io/p/caddy-cloudflare-internal-https/><link rel=stylesheet href=/scss/style.min.33e66a914c6bd7f8057fc302567c6e1050d0fa78140c0cd7f70c926da5ec3d1d.css><meta property='og:title' content="Caddy + Cloudflare DNS Challenge：给 Homelab 内网服务自动签发 HTTPS 证书"><meta property='og:description' content="用 Caddy 和 Cloudflare DNS Challenge 为不暴露到公网的 Homelab 服务签发 Let's Encrypt 泛域名证书，包含 Docker Compose、Caddyfile、API Token 权限、反代配置和常见踩坑。"><meta property='og:url' content='https://shallowhave.github.io/p/caddy-cloudflare-internal-https/'><meta property='og:site_name' content='浅忆·Blog'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2026-05-23T09:23:23+08:00'><meta property='article:modified_time' content='2026-05-23T09:23:23+08:00'><meta name=twitter:title content="Caddy + Cloudflare DNS Challenge：给 Homelab 内网服务自动签发 HTTPS 证书"><meta name=twitter:description content="用 Caddy 和 Cloudflare DNS Challenge 为不暴露到公网的 Homelab 服务签发 Let's Encrypt 泛域名证书，包含 Docker Compose、Caddyfile、API Token 权限、反代配置和常见踩坑。"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_d4690317ee94643a.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>浅忆·Blog</a></h1><h2 class=site-description>浅忆·Blog</h2></div></header><ol class=menu-social><li><a href=https://github.com/Shallowhave target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/%E5%85%B3%E4%BA%8E/><svg class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+<span>关于</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E9%93%BE/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友链</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#1-架构设计>1. 架构设计</a></li><li><a href=#2-创建-cloudflare-api-token>2. 创建 Cloudflare API Token</a></li><li><a href=#3-构建带-cloudflare-插件的-caddy-镜像>3. 构建带 Cloudflare 插件的 Caddy 镜像</a></li><li><a href=#4-编写-caddyfile>4. 编写 Caddyfile</a></li><li><a href=#5-配置内网-dns-解析>5. 配置内网 DNS 解析</a></li><li><a href=#6-证书续期和备份>6. 证书续期和备份</a></li><li><a href=#7-常见踩坑>7. 常见踩坑</a><ol><li><a href=#-1-cloudflare-token-权限太小或选错-zone>❌ 1. Cloudflare Token 权限太小或选错 Zone</a></li><li><a href=#-2-caddy-容器里读不到环境变量>❌ 2. Caddy 容器里读不到环境变量</a></li><li><a href=#-3-后端-https-自签证书导致-502>❌ 3. 后端 HTTPS 自签证书导致 502</a></li><li><a href=#-4-websocket-服务异常>❌ 4. WebSocket 服务异常</a></li><li><a href=#-5-证书申请成功但浏览器还是访问旧证书>❌ 5. 证书申请成功，但浏览器还是访问旧证书</a></li></ol></li><li><a href=#8-安全建议>8. 安全建议</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><div class=article-title-wrapper><h2 class=article-title><a href=/p/caddy-cloudflare-internal-https/>Caddy + Cloudflare DNS Challenge：给 Homelab 内网服务自动签发 HTTPS 证书</a></h2><h3 class=article-subtitle>用 Caddy 和 Cloudflare DNS Challenge 为不暴露到公网的 Homelab 服务签发 Let's Encrypt 泛域名证书，包含 Docker Compose、Caddyfile、API Token 权限、反代配置和常见踩坑。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>May 23, 2026</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 6 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>Homelab 里最烦人的事情之一，是每个服务都有自己的端口和自签证书：PVE 是 <code>https://pve:8006</code>，NAS 是 <code>https://nas:5001</code>，Grafana 是 <code>http://grafana:3000</code>，Home Assistant 又是另一个端口。浏览器天天提示“不安全”，移动端 App 还经常因为证书不受信任拒绝连接。</p><p>最直接的方案是做一个统一入口：<strong>反向代理 + 正式 HTTPS 证书</strong>。但很多 Homelab 服务只想在内网访问，不想把 80/443 暴露到公网。这时 HTTP-01 验证就不好用了，推荐改用 <strong>DNS-01 Challenge</strong>：由 Caddy 调用 Cloudflare API 写入 <code>_acme-challenge</code> TXT 记录，Let&rsquo;s Encrypt 验证 DNS 记录后签发证书。服务本身不需要公网开放，甚至可以只监听在内网。</p><p>本文用 Caddy 作为反向代理，Cloudflare 托管 DNS，目标是实现：</p><ul><li><code>https://pve.lab.example.com</code> → PVE 管理页面</li><li><code>https://grafana.lab.example.com</code> → Grafana</li><li><code>https://ha.lab.example.com</code> → Home Assistant</li><li>自动申请、自动续期、统一日志、统一入口</li></ul><blockquote><p>下文把域名写成 <code>example.com</code>，实际操作时替换成你自己的域名。</p></blockquote><h2 id=1-架构设计>1. 架构设计</h2><p>推荐把 Caddy 放在一台稳定在线的 Linux/Docker 主机上，常见选择是：独立 LXC、Docker VM、小主机、NAS Docker。网络上只要内网客户端能访问它的 443 端口即可。</p><div class=table-wrapper><table><thead><tr><th>组件</th><th>作用</th><th>推荐配置</th></tr></thead><tbody><tr><td>Caddy</td><td>反向代理、证书申请、自动续期</td><td>Docker 部署，持久化 <code>/data</code></td></tr><tr><td>Cloudflare DNS</td><td>DNS-01 验证 TXT 记录</td><td>只给最小 API Token 权限</td></tr><tr><td>内网 DNS</td><td>让内网域名解析到 Caddy</td><td>AdGuard Home / 路由器 / Pi-hole</td></tr><tr><td>后端服务</td><td>PVE、Grafana、HA、NAS 等</td><td>尽量只监听内网</td></tr></tbody></table></div><p>核心链路如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>浏览器 -&gt; https://pve.lab.example.com:443 -&gt; Caddy -&gt; https://192.168.1.10:8006
+</span></span><span class=line><span class=cl>                                         -&gt; Caddy 自动用 Cloudflare DNS API 续证书
+</span></span></code></pre></td></tr></table></div></div><p>这里有两个关键点：</p><ol><li><strong>证书签发靠公网 DNS，不靠公网端口</strong>：DNS-01 只需要 Cloudflare 能写 TXT 记录，不要求你的家庭宽带有公网 IP。</li><li><strong>内网访问靠本地 DNS 覆盖</strong>：<code>*.lab.example.com</code> 在内网解析到 Caddy 的内网 IP，比如 <code>192.168.1.9</code>。</li></ol><h2 id=2-创建-cloudflare-api-token>2. 创建 Cloudflare API Token</h2><p>不要直接使用 Global API Key。它权限太大，泄露后等于整个 Cloudflare 账号裸奔。创建一个最小权限 Token 即可：</p><p>Cloudflare 控制台路径：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>My Profile -&gt; API Tokens -&gt; Create Token -&gt; Custom token
+</span></span></code></pre></td></tr></table></div></div><p>权限建议：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Permissions:
+</span></span><span class=line><span class=cl>  Zone / DNS / Edit
+</span></span><span class=line><span class=cl>  Zone / Zone / Read
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>Zone Resources:
+</span></span><span class=line><span class=cl>  Include / Specific zone / example.com
+</span></span></code></pre></td></tr></table></div></div><p>创建后得到类似下面的 Token：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=nv>CLOUDFLARE_API_TOKEN</span><span class=o>=</span>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+</span></span></code></pre></td></tr></table></div></div><p>这个 Token 只需要给 Caddy 使用，建议放进 <code>.env</code>，不要写进 <code>compose.yaml</code> 或 Git 仓库。</p><h2 id=3-构建带-cloudflare-插件的-caddy-镜像>3. 构建带 Cloudflare 插件的 Caddy 镜像</h2><p>官方 Caddy 镜像默认不带 <code>dns.providers.cloudflare</code> 插件，需要用 <code>xcaddy</code> 构建一个自定义镜像。目录结构建议如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>mkdir -p /opt/caddy/<span class=o>{</span>data,config,logs<span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /opt/caddy
+</span></span></code></pre></td></tr></table></div></div><p>创建 <code>Dockerfile</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=line><span class=cl><span class=k>FROM</span><span class=w> </span><span class=s>caddy:2-builder</span><span class=w> </span><span class=k>AS</span><span class=w> </span><span class=s>builder</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>RUN</span> xcaddy build <span class=se>\
+</span></span></span><span class=line><span class=cl>    --with github.com/caddy-dns/cloudflare<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>FROM</span><span class=w> </span><span class=s>caddy:2</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=k>COPY</span> --from<span class=o>=</span>builder /usr/bin/caddy /usr/bin/caddy<span class=err>
+</span></span></span></code></pre></td></tr></table></div></div><p>创建 <code>.env</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>cat &gt; .env <span class=s>&lt;&lt;&#39;EOF&#39;
+</span></span></span><span class=line><span class=cl><span class=s>CLOUDFLARE_API_TOKEN=替换成你的 Cloudflare API Token
+</span></span></span><span class=line><span class=cl><span class=s>TZ=Asia/Shanghai
+</span></span></span><span class=line><span class=cl><span class=s>EOF</span>
+</span></span><span class=line><span class=cl>chmod <span class=m>600</span> .env
+</span></span></code></pre></td></tr></table></div></div><p>创建 <code>compose.yaml</code>：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>homelab-caddy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>services</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>caddy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>build</span><span class=p>:</span><span class=w> </span><span class=l>.</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>container_name</span><span class=p>:</span><span class=w> </span><span class=l>caddy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>restart</span><span class=p>:</span><span class=w> </span><span class=l>unless-stopped</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>env_file</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>.env</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;80:80&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;443:443&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=s2>&#34;443:443/udp&#34;</span><span class=w>   </span><span class=c># HTTP/3，可选</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>volumes</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./Caddyfile:/etc/caddy/Caddyfile:ro</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./data:/data</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./config:/config</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>./logs:/var/log/caddy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span>- <span class=l>proxy</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=nt>networks</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>proxy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>proxy</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>注意 <code>/data</code> 必须持久化，Caddy 的账户密钥和证书都在里面。如果这个目录丢了，Caddy 会重新申请证书；频繁重建可能触发 Let&rsquo;s Encrypt 速率限制。</p><h2 id=4-编写-caddyfile>4. 编写 Caddyfile</h2><p>先写一个可复用的 Cloudflare DNS Challenge 片段：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>email</span> <span class=s>admin@example.com</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nv>(tls_cloudflare)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>tls</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>dns</span> <span class=s>cloudflare</span> <span class=se>{env.CLOUDFLARE_API_TOKEN}</span>
+</span></span><span class=line><span class=cl>        <span class=k>resolvers</span> <span class=mi>1</span><span class=s>.1.1.1</span> <span class=mi>8</span><span class=s>.8.8.8</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nv>(common_headers)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>header</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>Strict-Transport-Security</span> <span class=s2>&#34;max-age=31536000; includeSubDomains; preload&#34;</span>
+</span></span><span class=line><span class=cl>        <span class=k>X-Content-Type-Options</span> <span class=s2>&#34;nosniff&#34;</span>
+</span></span><span class=line><span class=cl>        <span class=k>X-Frame-Options</span> <span class=s2>&#34;SAMEORIGIN&#34;</span>
+</span></span><span class=line><span class=cl>        <span class=k>Referrer-Policy</span> <span class=s2>&#34;strict-origin-when-cross-origin&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后为不同服务写反代。PVE 比较特殊：后端是 HTTPS，证书通常是自签名，需要跳过后端证书校验。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>pve.lab.example.com</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>import</span> tls_cloudflare
+</span></span><span class=line><span class=cl>    <span class=k>import</span> common_headers
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>https://192.168.1.10</span><span class=p>:</span><span class=mi>8006</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>transport</span> <span class=s>http</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=k>tls_insecure_skip_verify</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>log</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>output</span> <span class=s>file</span> <span class=s>/var/log/caddy/pve.log</span>
+</span></span><span class=line><span class=cl>        <span class=k>format</span> <span class=s>json</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>Grafana 这类普通 HTTP 服务更简单：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>grafana.lab.example.com</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>import</span> tls_cloudflare
+</span></span><span class=line><span class=cl>    <span class=k>import</span> common_headers
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>http://192.168.1.20</span><span class=p>:</span><span class=mi>3000</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>log</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>output</span> <span class=s>file</span> <span class=s>/var/log/caddy/grafana.log</span>
+</span></span><span class=line><span class=cl>        <span class=k>format</span> <span class=s>json</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>Home Assistant 如果通过反代访问，需要在 <code>configuration.yaml</code> 中信任代理 IP：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>http</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>use_x_forwarded_for</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>trusted_proxies</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=m>192.168.1.9</span><span class=w>  </span><span class=c># Caddy 主机 IP</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>对应 Caddy 配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>ha.lab.example.com</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>import</span> tls_cloudflare
+</span></span><span class=line><span class=cl>    <span class=k>import</span> common_headers
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>reverse_proxy</span> <span class=n>http://192.168.1.30</span><span class=p>:</span><span class=mi>8123</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>完整配置写完后，先格式化检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose build
+</span></span><span class=line><span class=cl>docker compose run --rm caddy caddy fmt --overwrite /etc/caddy/Caddyfile
+</span></span><span class=line><span class=cl>docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile
+</span></span></code></pre></td></tr></table></div></div><p>如果 <code>validate</code> 通过，再启动：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose up -d
+</span></span><span class=line><span class=cl>docker compose logs -f caddy
+</span></span></code></pre></td></tr></table></div></div><p>看到类似 <code>certificate obtained successfully</code> 或 <code>serving initial configuration</code>，说明 Caddy 已经开始工作。</p><h2 id=5-配置内网-dns-解析>5. 配置内网 DNS 解析</h2><p>证书签发完成后，还需要让内网客户端访问 <code>*.lab.example.com</code> 时命中 Caddy。最简单做法是在 AdGuard Home / Pi-hole 里加 DNS Rewrite：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>*.lab.example.com -&gt; 192.168.1.9
+</span></span></code></pre></td></tr></table></div></div><p>如果你的 DNS 不支持通配符，就逐条添加：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>pve.lab.example.com     192.168.1.9
+</span></span><span class=line><span class=cl>grafana.lab.example.com 192.168.1.9
+</span></span><span class=line><span class=cl>ha.lab.example.com      192.168.1.9
+</span></span></code></pre></td></tr></table></div></div><p>Linux 客户端可以用下面命令验证：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>dig pve.lab.example.com +short
+</span></span><span class=line><span class=cl>curl -I https://pve.lab.example.com
+</span></span></code></pre></td></tr></table></div></div><p>预期结果：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>192.168.1.9
+</span></span><span class=line><span class=cl>HTTP/2 200
+</span></span><span class=line><span class=cl>server: Caddy
+</span></span></code></pre></td></tr></table></div></div><p>如果 <code>dig</code> 解析到了公网 Cloudflare IP，而不是你的 Caddy 内网 IP，说明客户端没有使用你的内网 DNS，先检查 DHCP 下发的 DNS 地址。</p><h2 id=6-证书续期和备份>6. 证书续期和备份</h2><p>Caddy 会自动续期证书，不需要 cron。你真正需要备份的是 <code>/opt/caddy/data</code> 和 <code>Caddyfile</code>。</p><p>推荐备份命令：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>tar -czf /backup/caddy-<span class=k>$(</span>date +%F<span class=k>)</span>.tar.gz <span class=se>\
+</span></span></span><span class=line><span class=cl>  /opt/caddy/Caddyfile <span class=se>\
+</span></span></span><span class=line><span class=cl>  /opt/caddy/compose.yaml <span class=se>\
+</span></span></span><span class=line><span class=cl>  /opt/caddy/data <span class=se>\
+</span></span></span><span class=line><span class=cl>  /opt/caddy/config
+</span></span></code></pre></td></tr></table></div></div><p>也可以用 Restic：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>restic -r s3:https://minio.example.com/backup/caddy backup /opt/caddy <span class=se>\
+</span></span></span><span class=line><span class=cl>  --exclude <span class=s1>&#39;/opt/caddy/logs&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>查看证书和自动化状态：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 查看 Caddy 当前配置适配结果</span>
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> caddy caddy adapt --config /etc/caddy/Caddyfile --pretty
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看最近的证书申请/续期日志</span>
+</span></span><span class=line><span class=cl>docker compose logs caddy <span class=p>|</span> grep -Ei <span class=s1>&#39;certificate|renew|acme|challenge&#39;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 查看证书有效期</span>
+</span></span><span class=line><span class=cl>openssl s_client -connect pve.lab.example.com:443 -servername pve.lab.example.com &lt;/dev/null 2&gt;/dev/null <span class=se>\
+</span></span></span><span class=line><span class=cl>  <span class=p>|</span> openssl x509 -noout -subject -issuer -dates
+</span></span></code></pre></td></tr></table></div></div><h2 id=7-常见踩坑>7. 常见踩坑</h2><h3 id=-1-cloudflare-token-权限太小或选错-zone>❌ 1. Cloudflare Token 权限太小或选错 Zone</h3><p>日志通常会出现 <code>Error presenting token</code>、<code>Invalid request headers</code> 或 <code>Actor requires permission</code>。重点检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>Zone / DNS / Edit
+</span></span><span class=line><span class=cl>Zone / Zone / Read
+</span></span><span class=line><span class=cl>Zone Resources 必须包含你的域名
+</span></span></code></pre></td></tr></table></div></div><p>如果你有多个域名，确认 Token 绑定的是 <code>example.com</code>，不是别的 Zone。</p><h3 id=-2-caddy-容器里读不到环境变量>❌ 2. Caddy 容器里读不到环境变量</h3><p>如果 Caddyfile 写了：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>dns</span> <span class=gh>cloudflare</span> <span class=se>{env.CLOUDFLARE_API_TOKEN}</span><span class=p>
+</span></span></span></code></pre></td></tr></table></div></div><p>但日志提示 token 为空，检查：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>docker compose config <span class=p>|</span> grep CLOUDFLARE -n
+</span></span><span class=line><span class=cl>docker <span class=nb>exec</span> caddy printenv <span class=p>|</span> grep CLOUDFLARE
+</span></span></code></pre></td></tr></table></div></div><p><code>.env</code> 默认只用于 Compose 变量替换，不一定自动注入容器；本文使用 <code>env_file</code> 是为了确保变量进入容器环境。</p><h3 id=-3-后端-https-自签证书导致-502>❌ 3. 后端 HTTPS 自签证书导致 502</h3><p>PVE、部分 NAS、ESXi 这类服务经常用自签证书。Caddy 默认会校验证书，失败就返回 502。解决方式是在对应 <code>reverse_proxy</code> 上加：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-caddyfile data-lang=caddyfile><span class=line><span class=cl><span class=gh>transport</span> <span class=gh>http</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>tls_insecure_skip_verify</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>这只影响 Caddy 到后端的内网连接，不影响浏览器到 Caddy 的公网可信证书。但如果你的后端能部署内网 CA，更推荐导入 CA 而不是跳过校验。</p><h3 id=-4-websocket-服务异常>❌ 4. WebSocket 服务异常</h3><p>Caddy 的 <code>reverse_proxy</code> 默认支持 WebSocket，通常不需要手动设置 <code>Upgrade</code> 头。如果 WebSocket 仍然异常，多半是后端应用需要知道真实域名或 HTTPS 协议，例如 Grafana：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-ini data-lang=ini><span class=line><span class=cl><span class=k>[server]</span>
+</span></span><span class=line><span class=cl><span class=na>domain</span> <span class=o>=</span> <span class=s>grafana.lab.example.com</span>
+</span></span><span class=line><span class=cl><span class=na>root_url</span> <span class=o>=</span> <span class=s>https://grafana.lab.example.com/</span>
+</span></span><span class=line><span class=cl><span class=na>serve_from_sub_path</span> <span class=o>=</span> <span class=s>false</span>
+</span></span></code></pre></td></tr></table></div></div><p>Home Assistant 则重点检查 <code>trusted_proxies</code>。</p><h3 id=-5-证书申请成功但浏览器还是访问旧证书>❌ 5. 证书申请成功，但浏览器还是访问旧证书</h3><p>常见原因是访问没有命中 Caddy，而是直连后端。用下面命令确认：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>curl -vk https://pve.lab.example.com 2&gt;<span class=p>&amp;</span><span class=m>1</span> <span class=p>|</span> grep -E <span class=s1>&#39;subject:|issuer:|server:&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果 <code>server</code> 不是 Caddy，或者证书 issuer 不是 Let&rsquo;s Encrypt，说明 DNS 或端口转发走错了。</p><h2 id=8-安全建议>8. 安全建议</h2><ol><li><strong>Caddy 主机只开放必要端口</strong>：内网场景只需要 443，80 可用于跳转或关闭。</li><li><strong>管理后台加二次认证</strong>：PVE、NAS、Grafana 都建议开启 2FA。</li><li><strong>不要把所有服务暴露到公网</strong>：DNS-01 能签证书，不代表必须公网开放。</li><li><strong>API Token 定期轮换</strong>：Cloudflare Token 泄露后可被用来改 DNS 记录。</li><li><strong>反代日志要轮转</strong>：否则 JSON 日志也会慢慢吃掉磁盘。</li></ol><p>一个简单的 logrotate 配置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>/opt/caddy/logs/*.log {
+</span></span><span class=line><span class=cl>    daily
+</span></span><span class=line><span class=cl>    rotate 14
+</span></span><span class=line><span class=cl>    compress
+</span></span><span class=line><span class=cl>    missingok
+</span></span><span class=line><span class=cl>    notifempty
+</span></span><span class=line><span class=cl>    copytruncate
+</span></span><span class=line><span class=cl>}
+</span></span></code></pre></td></tr></table></div></div><h2 id=总结>总结</h2><p>如果你的 Homelab 服务主要在内网使用，我更推荐 <strong>Caddy + Cloudflare DNS-01</strong>，而不是把 80/443 暴露出去做 HTTP 验证。它的优势很明显：</p><div class=table-wrapper><table><thead><tr><th>方案</th><th style=text-align:right>是否需要公网端口</th><th style=text-align:right>自动续期</th><th style=text-align:right>配置复杂度</th><th style=text-align:right>适合内网服务</th></tr></thead><tbody><tr><td>自签证书</td><td style=text-align:right>否</td><td style=text-align:right>❌</td><td style=text-align:right>低</td><td style=text-align:right>勉强可用</td></tr><tr><td>Nginx + acme.sh</td><td style=text-align:right>否</td><td style=text-align:right>✅</td><td style=text-align:right>中高</td><td style=text-align:right>✅</td></tr><tr><td>Traefik + DNS Challenge</td><td style=text-align:right>否</td><td style=text-align:right>✅</td><td style=text-align:right>中</td><td style=text-align:right>✅</td></tr><tr><td>Caddy + Cloudflare DNS Challenge</td><td style=text-align:right>否</td><td style=text-align:right>✅</td><td style=text-align:right>低</td><td style=text-align:right>🏆</td></tr></tbody></table></div><p>一句话：<strong>把 Caddy 当成 Homelab 的 HTTPS 入口，用 DNS-01 解决证书，用内网 DNS 解决访问路径</strong>。这样既不牺牲安全性，也能让 PVE、Grafana、Home Assistant 这些服务拥有和公网网站一样干净的 HTTPS 体验。</p></section><footer class=article-footer><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><script src=https://giscus.app/client.js data-repo=Shallowhave/giscus data-repo-id=R_kgDOKIjS_Q data-category=Announcements data-category-id=DIC_kwDOKIjS_c4CYr8R data-mapping=pathname data-strict=0 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=preferred_color_scheme data-lang=zh-cn data-loading crossorigin=anonymous async></script><script>function setGiscusTheme(e){let t=document.querySelector("iframe.giscus-frame");t&&t.contentWindow.postMessage({giscus:{setConfig:{theme:e}}},"https://giscus.app")}(function(){addEventListener("message",t=>{if(event.origin!=="https://giscus.app")return;e()}),window.addEventListener("onColorSchemeChange",e);function e(){setGiscusTheme(document.documentElement.dataset.scheme==="light"?"preferred_color_scheme":"preferred_color_scheme")}})()</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2026 浅忆·Blog</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.29.0>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>
